@@ -1,3 +1,10 @@
+# Equipo: The Cheng
+- **Astrid Jasmin Vides Lopez** 00051722
+- **Alejandro José Orellana Reyes** 00125720
+- **Gerson Steven Majano Guandique** 00064420
+- **Jonathan Rodrigo Rivera Jiménez** 00064420
+- **Steven Junteng Chen Zhong** 00091523
+
 # SI Backend Boilerplate
 
 API REST construida con **NestJS 12**, **Prisma 7** y **PostgreSQL 18**, con autenticación por usuario y contraseña lista para usar.
