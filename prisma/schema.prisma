@@ -40,6 +40,10 @@ model User {
 
   refreshTokens RefreshToken[]
 
+  reservations    Reservation[]
+  trainedSessions ClassSession[] @relation("ClassTrainer")
+  memberships     Membership[]
+
   @@map("users")
 }
 
@@ -59,4 +63,96 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------
+// H4 — Reserva de cupo en una clase (DB-4.1)
+// ---------------------------------------------------------------
+
+enum ReservationStatus {
+  Activa
+  Cancelada
+
+  @@map("reservation_status")
+}
+
+model Reservation {
+  id          String            @id @default(uuid()) @db.Uuid
+  sessionId   String            @map("session_id") @db.Uuid
+  memberId    String            @map("member_id") @db.Uuid
+  status      ReservationStatus @default(Activa)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  cancelledAt DateTime?         @map("cancelled_at")
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  User         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // Una reserva por miembro y sesión (si cancela y reserva de nuevo, se reactiva)
+  @@unique([sessionId, memberId])
+  @@index([memberId])
+  @@index([sessionId, status])
+  @@map("reservations")
+}
+
+enum ClassSessionStatus {
+  Programada
+  Cancelada
+  Finalizada
+
+  @@map("class_session_status")
+}
+
+model ClassSession {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String
+  trainerId   String             @map("trainer_id") @db.Uuid
+  startsAt    DateTime           @map("starts_at")
+  durationMin Int                @map("duration_min")
+  capacity    Int
+  status      ClassSessionStatus @default(Programada)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  trainer      User          @relation("ClassTrainer", fields: [trainerId], references: [id])
+  reservations Reservation[]
+
+  @@index([startsAt])
+  @@map("class_sessions")
+}
+
+enum PlanType {
+  MENSUAL
+  TRIMESTRAL
+  CLASES_SUELTAS
+
+  @@map("plan_type")
+}
+
+model Plan {
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String       @unique
+  type         PlanType
+  price        Decimal      @db.Decimal(6, 2)
+  durationDays Int?         @map("duration_days")
+  classCount   Int?         @map("class_count")
+  isActive     Boolean      @default(true) @map("is_active")
+  memberships  Membership[]
+
+  @@map("plans")
+}
+
+model Membership {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  planId           String    @map("plan_id") @db.Uuid
+  startDate        DateTime  @map("start_date")
+  endDate          DateTime? @map("end_date")
+  remainingClasses Int?      @map("remaining_classes")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("memberships")
 }
