@@ -8,6 +8,7 @@ import { PrismaModule } from '@Prisma';
 import { UsersModule } from '@Users';
 import { validateEnv } from '@Config';
 import { ClassSessionsModule } from '@ClassSessions';
+import { EquipmentModule } from '@Equipment';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ClassSessionsModule } from '@ClassSessions';
     UsersModule,
     AuthModule,
     ClassSessionsModule,
+    EquipmentModule,
   ],
   providers: [
     {

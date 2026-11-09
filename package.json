@@ -7,7 +7,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
-    "build": "nest build && tsc-alias -p tsconfig.build.json",
+    "clean": "node -e \"const fs=require('node:fs');fs.rmSync('dist',{recursive:true,force:true});fs.rmSync('tsconfig.build.tsbuildinfo',{force:true})\"",
+    "build": "npm run clean && nest build && tsc-alias -p tsconfig.build.json",
     "deploy": "nest deploy",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
@@ -18,6 +19,7 @@
     "db:reset": "prisma migrate reset",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "npm run build && node dist/main.js",
+    "prestart:dev": "npm run clean",
     "start:dev": "concurrently --kill-others --names \"nest,alias\" -c \"green,cyan\" \"nest start --watch\" \"tsc-alias -w -p tsconfig.build.json\"",
     "start:debug": "concurrently --kill-others --names \"nest,alias\" -c \"green,cyan\" \"nest start --debug --watch\" \"tsc-alias -w -p tsconfig.build.json\"",
     "start:prod": "node dist/main.js",

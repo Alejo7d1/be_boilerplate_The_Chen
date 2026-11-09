@@ -49,7 +49,9 @@
       "@Config": ["./src/config/index.ts"],
       "@PrismaClient": ["./src/generated/prisma/client.ts"],
       "@ClassSessions": ["./src/class-sessions/index.ts"],
-      "@ClassSessions/*": ["./src/class-sessions/*/index.ts"]
+      "@ClassSessions/*": ["./src/class-sessions/*/index.ts"],
+      "@Equipment": ["./src/equipment/index.ts"],
+      "@Equipment/*": ["./src/equipment/*/index.ts"]
       
     }
   }
