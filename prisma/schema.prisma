@@ -40,6 +40,10 @@ model User {
 
   refreshTokens RefreshToken[]
 
+  reservations    Reservation[]
+  trainedSessions ClassSession[] @relation("ClassTrainer")
+  memberships     Membership[]
+
   @@map("users")
 }
 
