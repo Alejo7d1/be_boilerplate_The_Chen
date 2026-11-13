@@ -1,4 +1,4 @@
-# Equipo: The Cheng
+# Equipo: The Chen
 - **Astrid Jasmin Vides Lopez** 00051722
 - **Alejandro José Orellana Reyes** 00125720
 - **Gerson Steven Majano Guandique** 00064420
