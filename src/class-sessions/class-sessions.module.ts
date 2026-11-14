@@ -1,12 +1,24 @@
 import { Module } from '@nestjs/common';
-import { ClassSessionsController } from './controllers/index.js';
-import { ClassSessionRepository, ReservationRepository } from './repositories/index.js';
-import { ClassSessionsService } from './services/index.js';
-
+import { NotificationsModule } from '@Notifications';
+import {
+  ClassSessionsController,
+  ClassesController,
+} from './controllers/index.js';
+import {
+  ClassSessionRepository,
+  ReservationRepository,
+} from './repositories/index.js';
+import { ClassesService, ClassSessionsService } from './services/index.js';
 
 @Module({
-  controllers: [ClassSessionsController],
-  providers: [ClassSessionsService, ClassSessionRepository, ReservationRepository],
-  exports: [ClassSessionRepository, ReservationRepository], 
+  imports: [NotificationsModule],
+  controllers: [ClassSessionsController, ClassesController],
+  providers: [
+    ClassSessionsService,
+    ClassesService,
+    ClassSessionRepository,
+    ReservationRepository,
+  ],
+  exports: [ClassSessionRepository, ReservationRepository],
 })
 export class ClassSessionsModule {}

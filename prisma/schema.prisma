@@ -30,9 +30,20 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  MIEMBRO
+  ENTRENADOR
+  RECEPCION_ADMIN
+
+  @@map("user_role")
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
+  name         String   @default("")
+  role         UserRole @default(MIEMBRO)
+  cardNumber   String?  @unique @map("card_number")
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -40,10 +51,13 @@ model User {
 
   refreshTokens RefreshToken[]
 
-  reservations    Reservation[]
-  trainedSessions ClassSession[] @relation("ClassTrainer")
-  memberships     Membership[]
+  reservations     Reservation[]
+  trainedSessions  ClassSession[]    @relation("ClassTrainer")
+  memberships      Membership[]
+  trainerSlots     TrainerSlot[]
+  personalSessions PersonalSession[]
 
+  @@index([role])
   @@map("users")
 }
 
@@ -135,6 +149,7 @@ model Plan {
   price        Decimal      @db.Decimal(6, 2)
   durationDays Int?         @map("duration_days")
   classCount   Int?         @map("class_count")
+  benefits     String?
   isActive     Boolean      @default(true) @map("is_active")
   memberships  Membership[]
 
@@ -150,9 +165,83 @@ model Membership {
   remainingClasses Int?      @map("remaining_classes")
   createdAt        DateTime  @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
-  plan Plan @relation(fields: [planId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  plan    Plan     @relation(fields: [planId], references: [id])
+  charges Charge[]
 
   @@index([userId, createdAt])
   @@map("memberships")
+}
+
+enum SessionStatus {
+  Agendada
+  Completada
+  Cancelada
+
+  @@map("session_status")
+}
+
+// ---------------------------------------------------------------
+// H7 — Bloques de disponibilidad del entrenador (DB-7.1)
+// ---------------------------------------------------------------
+
+model TrainerSlot {
+  id        String   @id @default(uuid()) @db.Uuid
+  trainerId String   @map("trainer_id") @db.Uuid
+  date      DateTime @db.Date
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  isBooked  Boolean  @default(false) @map("is_booked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  trainer         User             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  personalSession PersonalSession?
+
+  @@unique([trainerId, date, startTime])
+  @@index([trainerId])
+  @@index([date])
+  @@map("trainer_slots")
+}
+
+// ---------------------------------------------------------------
+// H8 — Sesión personal agendada sobre un bloque (DB-8.1)
+// ---------------------------------------------------------------
+
+model PersonalSession {
+  id        String        @id @default(uuid()) @db.Uuid
+  slotId    String        @unique @map("slot_id") @db.Uuid
+  memberId  String        @map("member_id") @db.Uuid
+  status    SessionStatus @default(Agendada)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  slot   TrainerSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  member User        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  charge Charge?
+
+  @@index([memberId])
+  @@map("personal_sessions")
+}
+
+enum ChargeStatus {
+  Pendiente
+  Pagada
+  Anulada
+
+  @@map("charge_status")
+}
+
+/// Cobro generado por una compra/renovación de membresía o por una sesión personal.
+model Charge {
+  id                String       @id @default(uuid()) @db.Uuid
+  membershipId      String?      @map("membership_id") @db.Uuid
+  personalSessionId String?      @unique @map("personal_session_id") @db.Uuid
+  amount            Decimal      @db.Decimal(10, 2)
+  status            ChargeStatus @default(Pendiente)
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  membership      Membership?      @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  personalSession PersonalSession? @relation(fields: [personalSessionId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
+  @@map("charges")
 }

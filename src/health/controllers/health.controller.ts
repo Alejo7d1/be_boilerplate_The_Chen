@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '@Auth/decorators';
 import { HealthService } from '@Health/services';
 
@@ -10,7 +10,14 @@ export class HealthController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Health check' })
+  @ApiOperation({
+    summary: 'Health check',
+    description: 'Verifica que la API esté levantada. No requiere token.',
+  })
+  @ApiOkResponse({
+    description: 'Servicio disponible.',
+    schema: { type: 'string', example: 'Hello World!' },
+  })
   getHello(): string {
     return this.healthService.getHello();
   }

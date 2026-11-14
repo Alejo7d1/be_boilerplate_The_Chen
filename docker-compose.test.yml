@@ -1,0 +1,35 @@
+# Postgres dedicado a desarrollo y pruebas automatizadas.
+#
+# Se levanta aparte de docker-compose.yml a propósito: publica en 5433 para
+# no chocar con un Postgres que ya esté escuchando en 5432 (por ejemplo, uno
+# instalado en el host). El proyecto tiene su propio volumen, así que
+# `docker compose -f docker-compose.test.yml down -v` solo borra esta base.
+name: si-be-boilerplate-test
+
+services:
+  postgres-test:
+    image: postgres:18-alpine
+    container_name: si_be_postgres_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${TEST_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${TEST_POSTGRES_DB:-si_be_boilerplate_test}
+    ports:
+      - '${TEST_POSTGRES_PORT:-5433}:5432'
+    volumes:
+      # Postgres 18+ guarda los datos en un subdirectorio con la versión major.
+      - pgdata_test:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${TEST_POSTGRES_USER:-postgres} -d ${TEST_POSTGRES_DB:-si_be_boilerplate_test}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata_test:

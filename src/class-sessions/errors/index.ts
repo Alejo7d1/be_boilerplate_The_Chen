@@ -19,3 +19,18 @@ export class AlreadyReservedError extends Error {
     super(`Member already has an active reservation in ${sessionId}`);
   }
 }
+export class TrainerNotFoundError extends Error {
+  constructor(public readonly trainerId: string) {
+    super(`Trainer ${trainerId} not found`);
+  }
+}
+export class TrainerSchedulesOverlapError extends Error {
+  constructor(public readonly trainerId: string) {
+    super(`Trainer ${trainerId} already has a class in that time range`);
+  }
+}
+export class ClassNotCancellableError extends Error {
+  constructor(public readonly sessionId: string) {
+    super(`Class session ${sessionId} cannot be cancelled`);
+  }
+}
