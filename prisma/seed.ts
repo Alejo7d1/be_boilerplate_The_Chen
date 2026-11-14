@@ -180,7 +180,7 @@ async function main() {
 
   console.log('💳 Membresías y cobros de prueba inicializados correctamente.');
 
-  // 4. Crear Sesiones de Clases Grupales de Prueba (H4 - DB-4.1) [AHORA DENTRO DE MAIN]
+  // 4. Crear Sesiones de Clases Grupales de Prueba (H4 - DB-4.1) 
   const todaySessionDate = new Date();
   todaySessionDate.setHours(9, 0, 0, 0);
 
@@ -214,6 +214,22 @@ async function main() {
 
   console.log('🧘 Sesiones de clases grupales de prueba creadas exitosamente.');
   console.log('✨ Seed completado con éxito.');
+
+  // 5. Crear una reserva activa de prueba para el miembro activo (H4 / H5)
+  const sesionYoga = await prisma.classSession.findFirst({
+    where: { name: 'Yoga Flow Matutino' },
+  });
+
+  if (sesionYoga) {
+    await prisma.reservation.create({
+      data: {
+        sessionId: sesionYoga.id,
+        memberId: miembroActivo.id,
+        status: 'ACTIVA',
+      },
+    });
+    console.log('🎟️ Reserva de prueba creada para el miembro activo.');
+  }
 }
 
 main()

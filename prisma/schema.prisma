@@ -145,7 +145,7 @@ model Charge {
 }
 
 // ---------------------------------------------------------------
-// H4 — Modelo de Reservas de Clases (Task DB-4.1)
+// H4 & H5 — Modelo de Reservas de Clases (Tasks DB-4.1 / DB-5.1)
 // ---------------------------------------------------------------
 
 enum ReservationStatus {
@@ -175,12 +175,17 @@ model ClassSession {
 }
 
 model Reservation {
-  id        String            @id @default(uuid()) @db.Uuid
-  sessionId String            @map("session_id") @db.Uuid
-  memberId  String            @map("member_id") @db.Uuid
-  status    ReservationStatus @default(ACTIVA)
-  createdAt DateTime          @default(now()) @map("created_at")
-  updatedAt DateTime          @updatedAt @map("updated_at")
+  id                 String            @id @default(uuid()) @db.Uuid
+  sessionId          String            @map("session_id") @db.Uuid
+  memberId           String            @map("member_id") @db.Uuid
+  status             ReservationStatus @default(ACTIVA)
+  
+  // Nuevos campos requeridos por la tarea técnica DB-5.1 (H5)
+  canceledAt         DateTime?         @map("canceled_at")
+  cancellationReason String?           @map("cancellation_reason") @db.VarChar(255)
+
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
 
   session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   member  User         @relation("UserReservations", fields: [memberId], references: [id], onDelete: Cascade)
