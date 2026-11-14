@@ -1,26 +1,10 @@
 // Documentación: https://www.prisma.io/docs
-//
-// La URL de conexión NO vive acá: en Prisma 7 el CLI la lee desde
-// prisma.config.ts y el runtime la recibe vía driver adapter (PrismaPg),
-// configurado en src/prisma/prisma.service.ts.
 
 generator client {
-  provider = "prisma-client"
-
-  // `prisma-client-js` está deprecado. El generador nuevo exige un `output`
-  // explícito y genera dentro del proyecto en vez de node_modules.
-  // Tiene que caer dentro de src/ porque tsconfig.build.json compila
-  // únicamente ese directorio (rootDir: ./src, include: ["src"]).
-  output = "../src/generated/prisma"
-
-  // Query compiler en WASM: sin binario nativo de Rust, lo que permite usar
-  // imágenes Alpine sin instalar libssl.
-  engineType = "client"
-  runtime    = "nodejs"
-
-  // El proyecto es ESM puro ("type": "module" + moduleResolution nodenext),
-  // así que el cliente se genera como ESM y sus imports relativos llevan la
-  // extensión .js que tsc espera al emitir.
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  engineType             = "client"
+  runtime                = "nodejs"
   moduleFormat           = "esm"
   generatedFileExtension = "ts"
   importFileExtension    = "js"
@@ -30,33 +14,40 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  MIEMBRO
+  ENTRENADOR
+  RECEPCION_ADMIN
+
+  @@map("user_role")
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
   passwordHash String   @map("password_hash")
+  role         UserRole @default(MIEMBRO)
+  name         String?  @db.VarChar(50)
+  surname      String?  @db.VarChar(50)
+  cardNumber   String?  @unique @map("card_number") @db.VarChar(30)
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   refreshTokens RefreshToken[]
-
-  reservations    Reservation[]
-  trainedSessions ClassSession[] @relation("ClassTrainer")
-  memberships     Membership[]
+  memberships   Membership[]
+  charges       Charge[]       @relation("UserCharges")
+  reservations Reservation[] @relation("UserReservations")
+  trainerSessions ClassSession[] @relation("TrainerSessions")
 
   @@map("users")
 }
 
 model RefreshToken {
-  id String @id @default(uuid()) @db.Uuid
-
-  // Se guarda el SHA-256 del token, nunca el token en claro: si se filtra la
-  // base, los refresh tokens emitidos no son utilizables.
-  tokenHash String @unique @map("token_hash")
-
-  userId String @map("user_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -66,59 +57,8 @@ model RefreshToken {
 }
 
 // ---------------------------------------------------------------
-// H4 — Reserva de cupo en una clase (DB-4.1)
+// H1, H2 & H3 — Membresías, Planes y Cobros (Task DB-1.1 / DB-2.1 / DB-3.1)
 // ---------------------------------------------------------------
-
-enum ReservationStatus {
-  Activa
-  Cancelada
-
-  @@map("reservation_status")
-}
-
-model Reservation {
-  id          String            @id @default(uuid()) @db.Uuid
-  sessionId   String            @map("session_id") @db.Uuid
-  memberId    String            @map("member_id") @db.Uuid
-  status      ReservationStatus @default(Activa)
-  createdAt   DateTime          @default(now()) @map("created_at")
-  cancelledAt DateTime?         @map("cancelled_at")
-
-  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  member  User         @relation(fields: [memberId], references: [id], onDelete: Cascade)
-
-  // Una reserva por miembro y sesión (si cancela y reserva de nuevo, se reactiva)
-  @@unique([sessionId, memberId])
-  @@index([memberId])
-  @@index([sessionId, status])
-  @@map("reservations")
-}
-
-enum ClassSessionStatus {
-  Programada
-  Cancelada
-  Finalizada
-
-  @@map("class_session_status")
-}
-
-model ClassSession {
-  id          String             @id @default(uuid()) @db.Uuid
-  name        String
-  trainerId   String             @map("trainer_id") @db.Uuid
-  startsAt    DateTime           @map("starts_at")
-  durationMin Int                @map("duration_min")
-  capacity    Int
-  status      ClassSessionStatus @default(Programada)
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-
-  trainer      User          @relation("ClassTrainer", fields: [trainerId], references: [id])
-  reservations Reservation[]
-
-  @@index([startsAt])
-  @@map("class_sessions")
-}
 
 enum PlanType {
   MENSUAL
@@ -128,31 +68,126 @@ enum PlanType {
   @@map("plan_type")
 }
 
+enum MembershipStatus {
+  VIGENTE
+  VENCIDA
+
+  @@map("membership_status")
+}
+
+enum ChargeStatus {
+  PENDIENTE
+  PAGADO
+  ANULADO
+
+  @@map("charge_status")
+}
+
 model Plan {
-  id           String       @id @default(uuid()) @db.Uuid
-  name         String       @unique
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique @db.VarChar(50)
   type         PlanType
-  price        Decimal      @db.Decimal(6, 2)
-  durationDays Int?         @map("duration_days")
-  classCount   Int?         @map("class_count")
-  isActive     Boolean      @default(true) @map("is_active")
-  memberships  Membership[]
+  price        Decimal  @db.Decimal(10, 2)
+  durationDays Int?     @map("duration_days")
+  classCount   Int?     @map("class_count")
+  benefits     String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships Membership[]
+  charges     Charge[]
 
   @@map("plans")
 }
 
 model Membership {
-  id               String    @id @default(uuid()) @db.Uuid
-  userId           String    @map("user_id") @db.Uuid
-  planId           String    @map("plan_id") @db.Uuid
-  startDate        DateTime  @map("start_date")
-  endDate          DateTime? @map("end_date")
-  remainingClasses Int?      @map("remaining_classes")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  planId           String           @map("plan_id") @db.Uuid
+  status           MembershipStatus @default(VIGENTE)
+  startDate        DateTime         @map("start_date")
+  endDate          DateTime?        @map("end_date")
+  remainingClasses Int?             @map("remaining_classes")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id])
-  plan Plan @relation(fields: [planId], references: [id])
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    Plan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  charges Charge[]
 
+  @@index([userId, status])
   @@index([userId, createdAt])
   @@map("memberships")
+}
+
+model Charge {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  planId        String       @map("plan_id") @db.Uuid
+  membershipId  String?      @map("membership_id") @db.Uuid
+  amount        Decimal      @db.Decimal(10, 2)
+  status        ChargeStatus @default(PENDIENTE)
+  receiptNumber String?      @unique @map("receipt_number") @db.VarChar(30)
+  concept       String?      @db.VarChar(150)
+  last4         String?      @db.VarChar(4)
+  paidAt        DateTime?    @map("paid_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  user       User        @relation("UserCharges", fields: [userId], references: [id], onDelete: Cascade)
+  plan       Plan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  membership Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([createdAt])
+  @@map("charges")
+}
+
+// ---------------------------------------------------------------
+// H4 — Modelo de Reservas de Clases (Task DB-4.1)
+// ---------------------------------------------------------------
+
+enum ReservationStatus {
+  ACTIVA
+  CANCELADA
+
+  @@map("reservation_status")
+}
+
+model ClassSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  trainerId   String   @map("trainer_id") @db.Uuid
+  date        DateTime @db.Date
+  startTime   String   @map("start_time") @db.VarChar(5) // Formato "HH:mm"
+  duration    Int      @map("duration_minutes")
+  maxCapacity Int      @map("max_capacity")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  trainer      User          @relation("TrainerSessions", fields: [trainerId], references: [id], onDelete: Restrict)
+  reservations Reservation[]
+
+  @@index([date])
+  @@map("class_sessions")
+}
+
+model Reservation {
+  id        String            @id @default(uuid()) @db.Uuid
+  sessionId String            @map("session_id") @db.Uuid
+  memberId  String            @map("member_id") @db.Uuid
+  status    ReservationStatus @default(ACTIVA)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  User         @relation("UserReservations", fields: [memberId], references: [id], onDelete: Cascade)
+
+  // Restricción clave: Evita duplicados de reservas activas por usuario y sesión
+  @@unique([sessionId, memberId], name: "sessionId_memberId_unique")
+  @@index([sessionId])
+  @@index([memberId])
+  @@map("reservations")
 }
