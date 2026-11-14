@@ -1,7 +1,7 @@
 // Documentación: https://www.prisma.io/docs
 
 generator client {
-  provider               = "prisma-client-js"
+  provider               = "prisma-client"
   output                 = "../src/generated/prisma"
   engineType             = "client"
   runtime                = "nodejs"
@@ -37,6 +37,8 @@ model User {
   refreshTokens RefreshToken[]
   memberships   Membership[]
   charges       Charge[]       @relation("UserCharges")
+  reservations Reservation[] @relation("UserReservations")
+  trainerSessions ClassSession[] @relation("TrainerSessions")
 
   @@map("users")
 }
@@ -55,7 +57,7 @@ model RefreshToken {
 }
 
 // ---------------------------------------------------------------
-// H1, H2 & H3 — Membresías, Planes y Cobros (Task DB-1.1 / DB-2.1)
+// H1, H2 & H3 — Membresías, Planes y Cobros (Task DB-1.1 / DB-2.1 / DB-3.1)
 // ---------------------------------------------------------------
 
 enum PlanType {
@@ -140,4 +142,52 @@ model Charge {
   @@index([userId, status])
   @@index([createdAt])
   @@map("charges")
+}
+
+// ---------------------------------------------------------------
+// H4 — Modelo de Reservas de Clases (Task DB-4.1)
+// ---------------------------------------------------------------
+
+enum ReservationStatus {
+  ACTIVA
+  CANCELADA
+
+  @@map("reservation_status")
+}
+
+model ClassSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  trainerId   String   @map("trainer_id") @db.Uuid
+  date        DateTime @db.Date
+  startTime   String   @map("start_time") @db.VarChar(5) // Formato "HH:mm"
+  duration    Int      @map("duration_minutes")
+  maxCapacity Int      @map("max_capacity")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  trainer      User          @relation("TrainerSessions", fields: [trainerId], references: [id], onDelete: Restrict)
+  reservations Reservation[]
+
+  @@index([date])
+  @@map("class_sessions")
+}
+
+model Reservation {
+  id        String            @id @default(uuid()) @db.Uuid
+  sessionId String            @map("session_id") @db.Uuid
+  memberId  String            @map("member_id") @db.Uuid
+  status    ReservationStatus @default(ACTIVA)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  User         @relation("UserReservations", fields: [memberId], references: [id], onDelete: Cascade)
+
+  // Restricción clave: Evita duplicados de reservas activas por usuario y sesión
+  @@unique([sessionId, memberId], name: "sessionId_memberId_unique")
+  @@index([sessionId])
+  @@index([memberId])
+  @@map("reservations")
 }

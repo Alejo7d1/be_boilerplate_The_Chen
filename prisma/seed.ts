@@ -1,6 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
-import { UserRole, PlanType, MembershipStatus, ChargeStatus } from '../src/generated/prisma/enums.js';
+import { UserRole, PlanType, MembershipStatus, ChargeStatus, } from '../src/generated/prisma/enums.js';
 import * as bcrypt from 'bcrypt';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -10,6 +10,8 @@ async function main() {
   console.log('🌱 Iniciando el proceso de seed de la base de datos...');
 
   // Limpiar datos existentes en orden seguro (respetando llaves foráneas)
+  await prisma.reservation.deleteMany(); 
+  await prisma.classSession.deleteMany(); 
   await prisma.charge.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.plan.deleteMany();
@@ -177,6 +179,40 @@ async function main() {
   });
 
   console.log('💳 Membresías y cobros de prueba inicializados correctamente.');
+
+  // 4. Crear Sesiones de Clases Grupales de Prueba (H4 - DB-4.1) [AHORA DENTRO DE MAIN]
+  const todaySessionDate = new Date();
+  todaySessionDate.setHours(9, 0, 0, 0);
+
+  const tomorrowSessionDate = new Date();
+  tomorrowSessionDate.setDate(todaySessionDate.getDate() + 1);
+  tomorrowSessionDate.setHours(18, 0, 0, 0);
+
+  await prisma.classSession.create({
+    data: {
+      name: 'Yoga Flow Matutino',
+      trainerId: entrenador.id,
+      date: todaySessionDate,
+      startTime: '09:00',
+      duration: 60,
+      maxCapacity: 2, // Bajo para probar fácil el sobrecupo y concurrencia (H4)
+      isActive: true,
+    },
+  });
+
+  await prisma.classSession.create({
+    data: {
+      name: 'CrossFit Avanzado',
+      trainerId: entrenador.id,
+      date: tomorrowSessionDate,
+      startTime: '18:00',
+      duration: 60,
+      maxCapacity: 15,
+      isActive: true,
+    },
+  });
+
+  console.log('🧘 Sesiones de clases grupales de prueba creadas exitosamente.');
   console.log('✨ Seed completado con éxito.');
 }
 
