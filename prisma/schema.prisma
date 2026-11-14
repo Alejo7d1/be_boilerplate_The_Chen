@@ -30,19 +30,28 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  MIEMBRO
+  ENTRENADOR
+  RECEPCION_ADMIN
+
+  @@map("user_role")
+}
+
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(MIEMBRO)
+  name         String?   @db.VarChar(50)
+  surname      String?   @db.VarChar(50)
+  cardNumber   String?   @unique @map("card_number") @db.VarChar(30)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   refreshTokens RefreshToken[]
-
-  reservations    Reservation[]
-  trainedSessions ClassSession[] @relation("ClassTrainer")
-  memberships     Membership[]
+  memberships   Membership[]
 
   @@map("users")
 }
@@ -50,8 +59,6 @@ model User {
 model RefreshToken {
   id String @id @default(uuid()) @db.Uuid
 
-  // Se guarda el SHA-256 del token, nunca el token en claro: si se filtra la
-  // base, los refresh tokens emitidos no son utilizables.
   tokenHash String @unique @map("token_hash")
 
   userId String @map("user_id") @db.Uuid
@@ -66,59 +73,8 @@ model RefreshToken {
 }
 
 // ---------------------------------------------------------------
-// H4 — Reserva de cupo en una clase (DB-4.1)
+// H1 — Membresías y Planes (Task DB-1.1)
 // ---------------------------------------------------------------
-
-enum ReservationStatus {
-  Activa
-  Cancelada
-
-  @@map("reservation_status")
-}
-
-model Reservation {
-  id          String            @id @default(uuid()) @db.Uuid
-  sessionId   String            @map("session_id") @db.Uuid
-  memberId    String            @map("member_id") @db.Uuid
-  status      ReservationStatus @default(Activa)
-  createdAt   DateTime          @default(now()) @map("created_at")
-  cancelledAt DateTime?         @map("cancelled_at")
-
-  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  member  User         @relation(fields: [memberId], references: [id], onDelete: Cascade)
-
-  // Una reserva por miembro y sesión (si cancela y reserva de nuevo, se reactiva)
-  @@unique([sessionId, memberId])
-  @@index([memberId])
-  @@index([sessionId, status])
-  @@map("reservations")
-}
-
-enum ClassSessionStatus {
-  Programada
-  Cancelada
-  Finalizada
-
-  @@map("class_session_status")
-}
-
-model ClassSession {
-  id          String             @id @default(uuid()) @db.Uuid
-  name        String
-  trainerId   String             @map("trainer_id") @db.Uuid
-  startsAt    DateTime           @map("starts_at")
-  durationMin Int                @map("duration_min")
-  capacity    Int
-  status      ClassSessionStatus @default(Programada)
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-
-  trainer      User          @relation("ClassTrainer", fields: [trainerId], references: [id])
-  reservations Reservation[]
-
-  @@index([startsAt])
-  @@map("class_sessions")
-}
 
 enum PlanType {
   MENSUAL
@@ -129,14 +85,18 @@ enum PlanType {
 }
 
 model Plan {
-  id           String       @id @default(uuid()) @db.Uuid
-  name         String       @unique
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique @db.VarChar(50)
   type         PlanType
-  price        Decimal      @db.Decimal(6, 2)
-  durationDays Int?         @map("duration_days")
-  classCount   Int?         @map("class_count")
-  isActive     Boolean      @default(true) @map("is_active")
-  memberships  Membership[]
+  price        Decimal  @db.Decimal(10, 2)
+  durationDays Int?     @map("duration_days")
+  classCount   Int?     @map("class_count")
+  benefits     String?
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships Membership[]
 
   @@map("plans")
 }
@@ -149,10 +109,12 @@ model Membership {
   endDate          DateTime? @map("end_date")
   remainingClasses Int?      @map("remaining_classes")
   createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id])
-  plan Plan @relation(fields: [planId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt])
   @@map("memberships")
 }
+
