@@ -11,6 +11,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService<EnvConfig, true>);
 
+  app.enableCors({
+    origin: true, // Permite peticiones de cualquier origen en desarrollo (o puedes poner 'http://localhost:3001')
+    credentials: true, // Permite el envío de cookies/tokens de autorización
+  });
+
   // Versionado en la URI: /api/v1/...
   app.setGlobalPrefix(API_PREFIX);
 
