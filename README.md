@@ -19,6 +19,7 @@ API REST construida con **NestJS 12**, **Prisma 7** y **PostgreSQL 18**, con aut
 - [Cómo levantar el proyecto](#cómo-levantar-el-proyecto)
   - [Opción A: todo con Docker](#opción-a-todo-con-docker)
   - [Opción B: Postgres en Docker + API en el host](#opción-b-postgres-en-docker--api-en-el-host-recomendado-para-desarrollar)
+  - [Opción C: base local de desarrollo y pruebas](#opción-c-base-local-de-desarrollo-y-pruebas-recomendado-para-el-equipo)
 - [Docker en detalle](#docker-en-detalle)
 - [Prisma en detalle](#prisma-en-detalle)
 - [Autenticación](#autenticación)
@@ -62,6 +63,8 @@ import { AuthService } from './auth.service';    // ❌ falla en runtime
 ## Requisitos previos
 
 - **Node.js ≥ 20.19** (recomendado 22 o 24). Prisma 7 requiere `^20.19 || ^22.12 || >=24`
+  - Con nvm: `nvm install && nvm use` (el repo incluye `.nvmrc` con Node 22).
+  - Si ves `SyntaxError: Unexpected token 'with'`, estás usando Node 18: actualizá Node antes de `npm install`.
 - **Docker** y **Docker Compose v2+**
 - **npm**, **yarn** o **pnpm**
 
@@ -88,6 +91,11 @@ cp .env.example .env
 | `JWT_EXPIRES_IN` | `15m` | Vigencia del access token |
 | `REFRESH_TOKEN_EXPIRES_IN_DAYS` | `7` | Vigencia del refresh token |
 | `BCRYPT_SALT_ROUNDS` | `12` | Cost factor de bcrypt |
+| `NOTIFICATIONS_URL` | `http://localhost:3000/api/notifications/send` | Servicio de Notificaciones que recibe la cancelación de clases (H6) |
+| `TEST_POSTGRES_USER` | `postgres` | Usuario del Postgres local de [docker-compose.test.yml](docker-compose.test.yml) |
+| `TEST_POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
+| `TEST_POSTGRES_DB` | `si_be_boilerplate_test` | Base que crea ese contenedor al inicializarse |
+| `TEST_POSTGRES_PORT` | `5433` | Puerto publicado en el host |
 
 > La app **valida el entorno al arrancar** ([env.validation.ts](src/config/env.validation.ts)). Si falta `DATABASE_URL` o `JWT_SECRET`, o si el secreto es más corto que 32 caracteres, falla de inmediato con un mensaje claro en lugar de romperse más tarde.
 
@@ -112,7 +120,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Listo: la API queda en `http://localhost:3000/api/v1` y la documentación en `http://localhost:3000/api/docs`.
+Listo: la API queda en `http://localhost:3000/api` y la documentación en `http://localhost:3000/api/docs`.
 
 Para cargar el usuario de prueba:
 
@@ -157,15 +165,65 @@ npm run start:dev
 Verificá que responde:
 
 ```bash
-curl http://localhost:3000/api/v1
+curl http://localhost:3000/api
 # Hello World!
 ```
+
+### Opción C: base local de desarrollo y pruebas (recomendado para el equipo)
+
+[docker-compose.test.yml](docker-compose.test.yml) levanta un Postgres aislado en el puerto **5433** con su propio volumen (`pgdata_test`), pensado para no chocar con un Postgres que ya esté escuchando en el 5432. Dentro del mismo contenedor viven dos bases:
+
+| Base | Para qué | Se configura en |
+|---|---|---|
+| `si_be_boilerplate_dev` | Desarrollo manual, con los datos de prueba del seed | `.env` |
+| `si_be_boilerplate_test` | Suite end-to-end (`npm run test:e2e`) | `.env.test` |
+
+Así, correr los tests no ensucia la base con la que estás trabajando.
+
+```bash
+# 1. Dependencias (el postinstall genera el cliente de Prisma)
+npm install
+
+# 1.5. Entorno de los e2e (el archivo real está ignorado por git)
+cp .env.test.example .env.test
+
+# 2. Levantar Postgres, crear la base si falta, migrar y sembrar los datos de prueba
+npm run db:setup
+
+# 3. Arrancar en watch mode
+npm run start:dev
+```
+
+`db:setup` es idempotente: se puede repetir sin duplicar filas. Los `DATABASE_URL` de `.env` y `.env.test` tienen que apuntar a las bases de la tabla de arriba:
+
+```dotenv
+# .env  → base de desarrollo
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/si_be_boilerplate_dev?schema=public
+
+# .env.test  → base de los e2e
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/si_be_boilerplate_test?schema=public
+```
+
+Para volver a empezar de cero en la base de desarrollo (borra su contenido y vuelve a sembrar):
+
+```bash
+npm run db:reset
+```
+
+Para apagar el contenedor (los datos se conservan) o borrarlo junto con su volumen:
+
+```bash
+npm run db:local:down
+docker compose -f docker-compose.test.yml down -v
+```
+
+> Si preferís el `postgres` de `docker-compose.yml` (puerto 5432), ignorá esta opción: las opciones A y B siguen funcionando igual.
 
 ---
 
 ## Docker en detalle
 
-Hay dos piezas, con responsabilidades distintas:
+Hay tres piezas, con responsabilidades distintas:
 
 ### `docker-compose.yml` — orquesta el entorno
 
@@ -178,6 +236,12 @@ Define dos servicios:
 - **`healthcheck` con `pg_isready`**, para que el servicio `api` no arranque hasta que la base acepte conexiones. Sin esto las migraciones fallan de forma intermitente al levantar todo junto.
 
 **`api`** construye y corre la aplicación a partir del `Dockerfile`, espera el healthcheck de `postgres` (`condition: service_healthy`) y al arrancar ejecuta `prisma migrate deploy && node dist/main.js`.
+
+### `docker-compose.test.yml` — base local de desarrollo y pruebas
+
+[Levanta un Postgres independiente](docker-compose.test.yml) en el puerto **5433**, con su propio proyecto de Compose (`si-be-boilerplate-test`) y su propio volumen (`pgdata_test`). No interfiere con el `postgres` de `docker-compose.yml` ni con un Postgres instalado en el host: se pueden tener ambos levantados a la vez.
+
+El contenedor se inicializa con la base `si_be_boilerplate_test`; la base de desarrollo (`si_be_boilerplate_dev`) la crea `npm run db:create` si todavía no existe.
 
 ### `Dockerfile` — construye la imagen de la API
 
@@ -216,7 +280,7 @@ npm run prisma:migrate && npm run db:seed
 
 ## Prisma en detalle
 
-El schema vive en [prisma/schema.prisma](prisma/schema.prisma) y define dos modelos: `User` y `RefreshToken`.
+El schema vive en [prisma/schema.prisma](prisma/schema.prisma) y define los modelos `User` (con `role`, `name` y `cardNumber`), `RefreshToken`, `Reservation`, `ClassSession`, `Plan`, `Membership`, `TrainerSlot`, `PersonalSession` y `Charge`.
 
 La configuración del CLI está en [prisma.config.ts](prisma.config.ts) (rutas del schema y las migraciones, comando de seed, y de dónde sale `DATABASE_URL`).
 
@@ -248,11 +312,40 @@ npm run db:reset
 
 ### Seed
 
-[prisma/seed.ts](prisma/seed.ts) crea un usuario de prueba mediante `upsert`, así que se puede correr las veces que haga falta:
+[prisma/seed.ts](prisma/seed.ts) carga un juego de datos de prueba determinista que cubre los escenarios del backlog en Jira: membresía vigente, por clases, vencida y sin membresía (H1), planes de los tres tipos y un plan retirado (H2/H3), reservas cancelables y no cancelables según la anticipación (H5), clases programadas, llenas, finalizadas y canceladas (H6), y miembros con y sin vigencia para el check-in (H9).
 
-| Email | Contraseña |
+Todos los usuarios comparten la contraseña `Demo1234!`:
+
+| Email | Rol / escenario |
 |---|---|
-| `demo@example.com` | `Demo1234!` |
+| `demo@example.com` | Miembro con membresía mensual vigente |
+| `miembro.clases@thechen.test` | Miembro con plan de clases sueltas (4 restantes) |
+| `miembro.vencida@thechen.test` | Miembro con membresía vencida |
+| `miembro.sinplan@thechen.test` | Miembro sin membresía |
+| `miembro.inactivo@thechen.test` | Cuenta desactivada (el login devuelve 401) |
+| `admin@thechen.test` | Administración / recepción |
+| `entrenador1@thechen.test` | Entrenador con clases asignadas |
+| `entrenador2@thechen.test` | Entrenador con clases asignadas |
+
+| Plan | Tipo | Precio | Detalle |
+|---|---|---|---|
+| `Mensual` | `MENSUAL` | 30.00 | 30 días |
+| `Trimestral` | `TRIMESTRAL` | 80.00 | 90 días |
+| `Clases sueltas` | `CLASES_SUELTAS` | 8.00 | 10 clases |
+| `Plan corporativo (retirado)` | `MENSUAL` | 25.00 | Inactivo, para la administración de planes |
+
+| Clase | Estado | Cupo | Escenario |
+|---|---|---|---|
+| `Yoga Flow` | Programada | 20 | Faltan días: la reserva se puede cancelar (H5) |
+| `Funcional` | Programada | 2 | Llena: dos reservas activas, reservar devuelve 409 |
+| `Spinning` | Programada | 10 | Empieza en 6 h: cancelación permitida |
+| `Pilates` | Programada | 10 | Empieza en 1 h: cancelación rechazada (H5) |
+| `CrossFit` | Finalizada | 15 | No se puede cancelar (H6) |
+| `Zumba` | Cancelada | 12 | Tiene una reserva histórica cancelada |
+
+Las fechas se calculan respecto al momento en que corre el seed, así que el escenario sigue siendo válido en cualquier momento. Los identificadores son fijos, por lo que se pueden usar directamente en pruebas manuales o en Postman.
+
+El seed también crea bloques de disponibilidad para `entrenador1` y `entrenador2` (uno de ellos ya reservado por una sesión personal de `demo@example.com`), de modo que H7 y H8 se pueden probar sin cargar datos a mano.
 
 ---
 
@@ -277,11 +370,13 @@ Esquema **access token + refresh token**, solo con email y contraseña.
 
 **Todo cerrado por defecto.** `JwtAuthGuard` está registrado como guard global; las rutas públicas se abren explícitamente con `@Public()`. Olvidarse del decorador deja el endpoint protegido, que es el error seguro.
 
+**Autorización por rol.** `RolesGuard` corre después del guard de JWT y solo restringe las rutas decoradas con `@Roles(...)`. Los roles del sistema son `MIEMBRO`, `ENTRENADOR` y `RECEPCION_ADMIN`; las rutas sin `@Roles` quedan disponibles para cualquier usuario autenticado.
+
 **El usuario se relee en cada request**, así una cuenta desactivada o borrada deja de funcionar al instante, sin esperar a que expire el token.
 
 ### Buenas prácticas REST aplicadas
 
-- **Versionado en la URI:** todo cuelga de `/api/v1`.
+- **Prefijo global:** todo cuelga de `/api` (sin versión en la URI).
 - **Sustantivos en plural para los recursos:** crear un usuario es `POST /users`, no `POST /createUser`.
 - **Códigos de estado correctos:** `201` al crear, `200` en login, `204` en logout (sin cuerpo), `400` de validación, `401` de autenticación, `409` de conflicto.
 - **Validación estricta de la entrada:** `whitelist` descarta propiedades no declaradas y `forbidNonWhitelisted` rechaza la request si vienen de más, en vez de ignorarlas en silencio.
@@ -291,21 +386,59 @@ Esquema **access token + refresh token**, solo con email y contraseña.
 
 ## Endpoints
 
-Base: `http://localhost:3000/api/v1` · Documentación interactiva: `http://localhost:3000/api/docs`
+Base: `http://localhost:3000/api` · Documentación interactiva: `http://localhost:3000/api/docs`
 
-| Método | Ruta | Auth | Código | Descripción |
+### Documentación Swagger
+
+La documentación OpenAPI se genera automáticamente desde los controladores y DTOs con `@nestjs/swagger`:
+
+| Recurso | URL |
+|---|---|
+| Swagger UI | `http://localhost:3000/api/docs` |
+| OpenAPI JSON | `http://localhost:3000/api/docs-json` |
+| OpenAPI YAML | `http://localhost:3000/api/docs-yaml` |
+
+La configuración central (título, descripción, tags, servidor `/api`, esquema `bearer` y opciones de UI) vive en [swagger.config.ts](src/config/swagger.config.ts). Para probar endpoints protegidos:
+
+1. Ejecutá `POST /auth/login`.
+2. Copiá el `accessToken`.
+3. Hacé clic en **Authorize**, pegá el token y confirmá.
+4. El token se conserva entre recargas (`persistAuthorization`).
+
+Los errores `400/401/403/404/409` se documentan con el esquema `ErrorResponseDto`, y cada operación incluye descripción, parámetros y códigos de respuesta.
+
+| Método | Ruta | Rol | Código | Descripción |
 |---|---|---|---|---|
 | `GET` | `/` | — | `200` | Health check |
-| `POST` | `/users` | — | `201` | Registra un usuario con email y contraseña |
-| `POST` | `/auth/login` | — | `200` | Inicia sesión con email y contraseña |
-| `POST` | `/auth/refresh` | — | `200` | Renueva el par de tokens |
-| `POST` | `/auth/logout` | — | `204` | Cierra la sesión |
-| `GET` | `/auth/me` | Bearer | `200` | Usuario autenticado |
+| `POST` | `/users` | Público | `201` | Registra un miembro con email, contraseña y nombre opcional |
+| `GET` | `/users?role=MIEMBRO&search=` | `RECEPCION_ADMIN` | `200` | Lista y busca miembros |
+| `POST` | `/auth/login` | Público | `200` | Inicia sesión con email y contraseña |
+| `POST` | `/auth/refresh` | Público | `200` | Renueva el par de tokens |
+| `POST` | `/auth/logout` | Público | `204` | Cierra la sesión |
+| `GET` | `/auth/me` | Autenticado | `200` | Usuario autenticado |
+| `GET` | `/memberships/me` | `MIEMBRO` | `200` | Estado de la membresía propia (H1) |
+| `POST` | `/memberships/purchase` | `RECEPCION_ADMIN` | `201` | Compra o renueva una membresía (H2) |
+| `GET` | `/plans` | Autenticado | `200` | Lista los planes (H3) |
+| `POST` | `/plans` | `RECEPCION_ADMIN` | `201` | Crea un plan (H3) |
+| `PUT` | `/plans/:id` | `RECEPCION_ADMIN` | `200` | Edita un plan (H3) |
+| `PATCH` | `/plans/:id/status` | `RECEPCION_ADMIN` | `200` | Activa o desactiva un plan (H3) |
+| `GET` | `/reservations/me` | `MIEMBRO` | `200` | Reservas propias (H5) |
+| `DELETE` | `/reservations/:id` | `MIEMBRO` | `200` | Cancela una reserva con ≥ 2 h de anticipación (H5) |
+| `GET` | `/class-sessions` | Autenticado | `200` | Clases de los próximos 7 días (H4/H6) |
+| `POST` | `/class-sessions/:id/reserve` | Autenticado | `201` | Reserva un cupo (H4) |
+| `POST` | `/classes` | `RECEPCION_ADMIN` | `201` | Programa una clase (H6) |
+| `PUT` | `/classes/:id` | `RECEPCION_ADMIN` | `200` | Edita una clase (H6) |
+| `PATCH` | `/classes/:id/cancel` | `RECEPCION_ADMIN` | `200` | Cancela una clase, libera reservas y notifica (H6) |
+| `GET` | `/trainers` | `MIEMBRO`, `ENTRENADOR`, `RECEPCION_ADMIN` | `200` | Lista entrenadores activos (H8) |
+| `POST` | `/trainer-availability` | `ENTRENADOR` | `201` | Registra un bloque de 60 minutos (H7) |
+| `GET` | `/trainers/:id/availability` | `MIEMBRO`, `ENTRENADOR`, `RECEPCION_ADMIN` | `200` | Consulta bloques y `isBooked` (H7/H8) |
+| `DELETE` | `/trainer-availability/:id` | `ENTRENADOR` | `204` | Elimina un bloque propio no reservado (H7) |
+| `POST` | `/personal-sessions` | `MIEMBRO` | `201` | Agenda una sesión personal sobre un bloque libre (H8) |
 
 ### Ejemplos
 
 ```bash
-BASE=http://localhost:3000/api/v1
+BASE=http://localhost:3000/api
 ```
 
 **Registro**
@@ -473,12 +606,19 @@ nest build && tsc-alias -p tsconfig.build.json
 ```
 .
 ├── docker-compose.yml            # Postgres + API para desarrollo local
+├── docker-compose.test.yml       # Postgres aislado para desarrollo y pruebas (5433)
+├── .env.test                     # Entorno de los e2e (base separada)
 ├── Dockerfile                    # Imagen multi-stage de la API
 ├── prisma.config.ts              # Configuración del CLI de Prisma
+├── scripts/
+│   └── create-database.ts        # Crea la base de DATABASE_URL si no existe
 ├── prisma/
-│   ├── schema.prisma             # Modelos User y RefreshToken
+│   ├── schema.prisma             # Modelos de Prisma
 │   ├── migrations/               # Migraciones versionadas
-│   └── seed.ts                   # Usuario demo
+│   └── seed.ts                   # Datos de prueba deterministas
+├── test/
+│   ├── setup-env.ts              # Carga .env.test antes de los e2e
+│   └── *.e2e-spec.ts
 └── src/
     ├── main.ts                   # Bootstrap: prefijo, validación, Swagger
     ├── app.module.ts             # Módulo raíz y guard global
@@ -538,5 +678,9 @@ Cada carpeta de capa incluye un `index.ts` que reexporta sus elementos, de modo 
 | `prisma:migrate` | Crea y aplica una migración (desarrollo) |
 | `prisma:deploy` | Aplica migraciones pendientes (producción) |
 | `prisma:studio` | Abre Prisma Studio |
-| `db:seed` | Carga el usuario demo |
-| `db:reset` | Resetea la base y vuelve a migrar |
+| `db:setup` | Levanta el Postgres local, crea la base si falta, migra y siembra los datos de prueba |
+| `db:create` | Crea la base de `DATABASE_URL` si no existe |
+| `db:local:up` | Levanta el Postgres local de `docker-compose.test.yml` |
+| `db:local:down` | Apaga ese contenedor (conserva los datos) |
+| `db:seed` | Carga los datos de prueba (idempotente) |
+| `db:reset` | Resetea la base, vuelve a migrar y siembra |

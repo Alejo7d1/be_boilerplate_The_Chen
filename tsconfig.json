@@ -49,8 +49,19 @@
       "@Config": ["./src/config/index.ts"],
       "@PrismaClient": ["./src/generated/prisma/client.ts"],
       "@ClassSessions": ["./src/class-sessions/index.ts"],
-      "@ClassSessions/*": ["./src/class-sessions/*/index.ts"]
-      
+      "@ClassSessions/*": ["./src/class-sessions/*/index.ts"],
+      "@Memberships": ["./src/memberships/index.ts"],
+      "@Memberships/*": ["./src/memberships/*/index.ts"],
+      "@Plans": ["./src/plans/index.ts"],
+      "@Plans/*": ["./src/plans/*/index.ts"],
+      "@Reservations": ["./src/reservations/index.ts"],
+      "@Reservations/*": ["./src/reservations/*/index.ts"],
+      "@Trainers": ["./src/trainers/index.ts"],
+      "@Trainers/*": ["./src/trainers/*/index.ts"],
+      "@PersonalSessions": ["./src/personal-sessions/index.ts"],
+      "@PersonalSessions/*": ["./src/personal-sessions/*/index.ts"],
+      "@Notifications": ["./src/notifications/index.ts"],
+      "@Notifications/*": ["./src/notifications/*/index.ts"]
     }
   }
 }
