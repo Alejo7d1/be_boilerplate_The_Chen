@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ClassSessionResponseDto, ReserveResponseDto } from '../dto/index.js';
 import {
   AlreadyReservedError,
@@ -33,19 +38,17 @@ export class ClassSessionsService {
 
   async listUpcoming(): Promise<ClassSessionResponseDto[]> {
     const now = new Date();
-    const rows = await this.sessions.findUpcoming(now, new Date(now.getTime() + WEEK_MS));
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      trainerName: r.trainerName,
-      startsAt: r.startsAt.toISOString(),
-      durationMin: r.durationMin,
-      capacity: r.capacity,
-      availableSpots: r.capacity - r.activeReservations,
-    }));
+    const rows = await this.sessions.findUpcoming(
+      now,
+      new Date(now.getTime() + WEEK_MS),
+    );
+    return rows.map((row) => ClassSessionResponseDto.fromRow(row));
   }
 
-  async reserve(sessionId: string, memberId: string): Promise<ReserveResponseDto> {
+  async reserve(
+    sessionId: string,
+    memberId: string,
+  ): Promise<ReserveResponseDto> {
     const membership = await this.reservations.findLatestMembership(memberId);
     if (!membership || !isMembershipActive(membership)) {
       throw new ForbiddenException('Tu membresía está vencida');
@@ -55,14 +58,23 @@ export class ClassSessionsService {
       const { id } = await this.reservations.reserveSpot({
         sessionId,
         memberId,
-        consumeClassFromMembershipId: membership.planType === 'CLASES_SUELTAS' ? membership.id : undefined,
+        consumeClassFromMembershipId:
+          membership.planType === 'CLASES_SUELTAS' ? membership.id : undefined,
       });
-      return { reservationId: id, status: 'Activa', message: 'Reserva confirmada' };
+      return {
+        reservationId: id,
+        status: 'Activa',
+        message: 'Reserva confirmada',
+      };
     } catch (error) {
-      if (error instanceof SessionNotFoundError) throw new NotFoundException('La clase no existe');
-      if (error instanceof SessionNotScheduledError) throw new ConflictException('La clase no está disponible');
-      if (error instanceof SessionFullError) throw new ConflictException('Clase sin cupos');
-      if (error instanceof AlreadyReservedError) throw new ConflictException('Ya tienes una reserva para esta clase');
+      if (error instanceof SessionNotFoundError)
+        throw new NotFoundException('La clase no existe');
+      if (error instanceof SessionNotScheduledError)
+        throw new ConflictException('La clase no está disponible');
+      if (error instanceof SessionFullError)
+        throw new ConflictException('Clase sin cupos');
+      if (error instanceof AlreadyReservedError)
+        throw new ConflictException('Ya tienes una reserva para esta clase');
       throw error;
     }
   }
