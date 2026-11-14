@@ -55,7 +55,7 @@ model RefreshToken {
 }
 
 // ---------------------------------------------------------------
-// H1 & H2 — Membresías, Planes y Cobros (Task DB-1.1 / DB-2.1)
+// H1, H2 & H3 — Membresías, Planes y Cobros (Task DB-1.1 / DB-2.1)
 // ---------------------------------------------------------------
 
 enum PlanType {
