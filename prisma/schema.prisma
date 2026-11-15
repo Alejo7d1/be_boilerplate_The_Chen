@@ -1,13 +1,13 @@
 // Documentación: https://www.prisma.io/docs
 
 generator client {
-  provider               = "prisma-client"
-  output                 = "../src/generated/prisma"
-  engineType             = "client"
-  runtime                = "nodejs"
-  moduleFormat           = "esm"
+  provider              = "prisma-client"
+  output                = "../src/generated/prisma"
+  engineType            = "client"
+  runtime               = "nodejs"
+  moduleFormat          = "esm"
   generatedFileExtension = "ts"
-  importFileExtension    = "js"
+  importFileExtension   = "js"
 }
 
 datasource db {
@@ -23,23 +23,27 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         UserRole @default(MIEMBRO)
-  name         String?  @db.VarChar(50)
-  surname      String?  @db.VarChar(50)
-  cardNumber   String?  @unique @map("card_number") @db.VarChar(30)
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String       @id @default(uuid()) @db.Uuid
+  email        String       @unique
+  role         UserRole     @default(MIEMBRO)
+  name         String?      @db.VarChar(50)
+  surname      String?      @db.VarChar(50)
+  cardNumber   String?      @unique @map("card_number") @db.VarChar(30)
+  passwordHash String       @map("password_hash")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  refreshTokens RefreshToken[]
-  memberships   Membership[]
-  charges       Charge[]       @relation("UserCharges")
-  reservations Reservation[] @relation("UserReservations")
-  trainerSessions ClassSession[] @relation("TrainerSessions")
+  refreshTokens    RefreshToken[]
+  memberships      Membership[]
+  charges          Charge[]          @relation("UserCharges")
+  reservations     Reservation[]     @relation("UserReservations")
+  trainerSessions  ClassSession[]    @relation("TrainerSessions")
+  trainedSessions  ClassSession[]    @relation("ClassTrainer")
+  trainerSlots     TrainerSlot[]
+  personalSessions PersonalSession[]
 
+  @@index([role])
   @@map("users")
 }
 
@@ -84,16 +88,16 @@ enum ChargeStatus {
 }
 
 model Plan {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String   @unique @db.VarChar(50)
+  id           String      @id @default(uuid()) @db.Uuid
+  name         String      @unique @db.VarChar(50)
   type         PlanType
-  price        Decimal  @db.Decimal(10, 2)
-  durationDays Int?     @map("duration_days")
-  classCount   Int?     @map("class_count")
+  price        Decimal     @db.Decimal(10, 2)
+  durationDays Int?        @map("duration_days")
+  classCount   Int?        @map("class_count")
   benefits     String?
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  isActive     Boolean     @default(true) @map("is_active")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   memberships Membership[]
   charges     Charge[]
@@ -155,26 +159,34 @@ enum ReservationStatus {
   @@map("reservation_status")
 }
 
+enum SessionState {
+  PROGRAMADA @map("programada")
+  CANCELADA  @map("cancelada")
+  FINALIZADA @map("finalizada")
+
+  @@map("session_state")
+}
+
 model ClassSession {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(100)
-  trainerId   String   @map("trainer_id") @db.Uuid
-  date        DateTime @db.Date
-  startTime   String   @map("start_time") @db.VarChar(5) // Formato "HH:mm"
-  duration    Int      @map("duration_minutes")
-  maxCapacity Int      @map("max_capacity")
+  id                 String       @id @default(uuid()) @db.Uuid
+  name               String       @db.VarChar(100)
+  trainerId          String       @map("trainer_id") @db.Uuid
+  date               DateTime     @db.Date
+  startTime          String       @map("start_time") @db.VarChar(5) // Formato "HH:mm"
+  duration           Int          @map("duration_minutes")
+  maxCapacity        Int          @map("max_capacity")
   status             SessionState @default(PROGRAMADA)
   cancellationReason String?      @map("cancellation_reason") @db.VarChar(255)
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  isActive           Boolean      @default(true) @map("is_active")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
 
   trainer      User          @relation("TrainerSessions", fields: [trainerId], references: [id], onDelete: Restrict)
   reservations Reservation[]
 
   @@index([date])
-  @@map("class_sessions")
   @@index([trainerId, date])
+  @@map("class_sessions")
 }
 
 model Reservation {
@@ -182,18 +194,14 @@ model Reservation {
   sessionId          String            @map("session_id") @db.Uuid
   memberId           String            @map("member_id") @db.Uuid
   status             ReservationStatus @default(ACTIVA)
-  
-  
   canceledAt         DateTime?         @map("canceled_at")
   cancellationReason String?           @map("cancellation_reason") @db.VarChar(255)
-
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
 
   session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   member  User         @relation("UserReservations", fields: [memberId], references: [id], onDelete: Cascade)
 
-  // Restricción clave: Evita duplicados de reservas activas por usuario y sesión
   @@unique([sessionId, memberId], name: "sessionId_memberId_unique")
   @@index([sessionId])
   @@index([memberId])
@@ -201,13 +209,45 @@ model Reservation {
 }
 
 // ---------------------------------------------------------------
-// H6 — Ajuste en ClassSession para Estados y Cancelación
+// H7 & H8 — Bloques de disponibilidad y Sesiones Personales (dev)
 // ---------------------------------------------------------------
 
-enum SessionState {
-  PROGRAMADA @map("programada")
-  CANCELADA  @map("cancelada")
-  FINALIZADA @map("finalizada")
+model TrainerSlot {
+  id        String   @id @default(uuid()) @db.Uuid
+  trainerId String   @map("trainer_id") @db.Uuid
+  date      DateTime @db.Date
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  isBooked  Boolean  @default(false) @map("is_booked")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  @@map("session_state")
+  trainer         User             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  personalSession PersonalSession?
+
+  @@unique([trainerId, date, startTime])
+  @@index([trainerId])
+  @@index([date])
+  @@map("trainer_slots")
+}
+
+model PersonalSession {
+  id        String        @id @default(uuid()) @db.Uuid
+  slotId    String        @unique @map("slot_id") @db.Uuid
+  memberId  String        @map("member_id") @db.Uuid
+  status    SessionStatus @default(Agendada)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  slot   TrainerSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  member User        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@map("personal_sessions")
+}
+
+enum SessionStatus {
+  Agendada
+  Completada
+  Cancelada
+
+  @@map("session_status")
 }
