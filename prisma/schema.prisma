@@ -163,6 +163,8 @@ model ClassSession {
   startTime   String   @map("start_time") @db.VarChar(5) // Formato "HH:mm"
   duration    Int      @map("duration_minutes")
   maxCapacity Int      @map("max_capacity")
+  status             SessionState @default(PROGRAMADA)
+  cancellationReason String?      @map("cancellation_reason") @db.VarChar(255)
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -172,6 +174,7 @@ model ClassSession {
 
   @@index([date])
   @@map("class_sessions")
+  @@index([trainerId, date])
 }
 
 model Reservation {
@@ -180,7 +183,7 @@ model Reservation {
   memberId           String            @map("member_id") @db.Uuid
   status             ReservationStatus @default(ACTIVA)
   
-  // Nuevos campos requeridos por la tarea técnica DB-5.1 (H5)
+  
   canceledAt         DateTime?         @map("canceled_at")
   cancellationReason String?           @map("cancellation_reason") @db.VarChar(255)
 
@@ -195,4 +198,16 @@ model Reservation {
   @@index([sessionId])
   @@index([memberId])
   @@map("reservations")
+}
+
+// ---------------------------------------------------------------
+// H6 — Ajuste en ClassSession para Estados y Cancelación
+// ---------------------------------------------------------------
+
+enum SessionState {
+  PROGRAMADA @map("programada")
+  CANCELADA  @map("cancelada")
+  FINALIZADA @map("finalizada")
+
+  @@map("session_state")
 }

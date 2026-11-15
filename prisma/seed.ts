@@ -1,6 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
-import { UserRole, PlanType, MembershipStatus, ChargeStatus, } from '../src/generated/prisma/enums.js';
+import { UserRole, PlanType, MembershipStatus, ChargeStatus, SessionState } from '../src/generated/prisma/enums.js';
 import * as bcrypt from 'bcrypt';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -196,6 +196,7 @@ async function main() {
       startTime: '09:00',
       duration: 60,
       maxCapacity: 2, // Bajo para probar fácil el sobrecupo y concurrencia (H4)
+      status: SessionState.PROGRAMADA,
       isActive: true,
     },
   });
@@ -208,6 +209,7 @@ async function main() {
       startTime: '18:00',
       duration: 60,
       maxCapacity: 15,
+      status: SessionState.PROGRAMADA,
       isActive: true,
     },
   });
