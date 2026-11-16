@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import type {
   ClassSessionStatus,
+  MembershipStatus,
   PlanType,
   ReservationStatus,
   UserRole,
@@ -60,6 +61,7 @@ function daysAgo(days: number): Date {
 interface SeedUser {
   id: string;
   email: string;
+  surname?: string;
   name: string;
   role: UserRole;
   cardNumber: string;
@@ -70,6 +72,7 @@ const USERS = {
   admin: {
     id: '11111111-1111-4111-8111-000000000001',
     email: 'admin@thechen.test',
+    surname: 'Admin',
     name: 'Recepción Admin',
     role: 'RECEPCION_ADMIN',
     cardNumber: 'EMP-2026-0001',
@@ -77,6 +80,7 @@ const USERS = {
   trainer1: {
     id: '11111111-1111-4111-8111-000000000002',
     email: 'entrenador1@thechen.test',
+    surname: 'López',
     name: 'Ana López',
     role: 'ENTRENADOR',
     cardNumber: 'EMP-2026-0002',
@@ -84,6 +88,7 @@ const USERS = {
   trainer2: {
     id: '11111111-1111-4111-8111-000000000003',
     email: 'entrenador2@thechen.test',
+    surname: 'Ruiz',
     name: 'Carlos Ruiz',
     role: 'ENTRENADOR',
     cardNumber: 'EMP-2026-0003',
@@ -92,6 +97,7 @@ const USERS = {
   demo: {
     id: '11111111-1111-4111-8111-000000000004',
     email: 'demo@example.com',
+    surname: 'Demo',
     name: 'Miembro Demo',
     role: 'MIEMBRO',
     cardNumber: 'MEM-2026-0001',
@@ -99,6 +105,7 @@ const USERS = {
   clases: {
     id: '11111111-1111-4111-8111-000000000005',
     email: 'miembro.clases@thechen.test',
+    surname: 'Clases',
     name: 'Miembro Clases',
     role: 'MIEMBRO',
     cardNumber: 'MEM-2026-0002',
@@ -106,6 +113,7 @@ const USERS = {
   vencida: {
     id: '11111111-1111-4111-8111-000000000006',
     email: 'miembro.vencida@thechen.test',
+    surname: 'Vencida',
     name: 'Miembro Vencida',
     role: 'MIEMBRO',
     cardNumber: 'MEM-2026-0003',
@@ -113,6 +121,7 @@ const USERS = {
   sinPlan: {
     id: '11111111-1111-4111-8111-000000000007',
     email: 'miembro.sinplan@thechen.test',
+    surname: 'Sin Plan',
     name: 'Miembro Sin Plan',
     role: 'MIEMBRO',
     cardNumber: 'MEM-2026-0004',
@@ -120,6 +129,7 @@ const USERS = {
   inactivo: {
     id: '11111111-1111-4111-8111-000000000008',
     email: 'miembro.inactivo@thechen.test',
+    surname: 'Inactivo',
     name: 'Miembro Inactivo',
     role: 'MIEMBRO',
     cardNumber: 'MEM-2026-0005',
@@ -180,6 +190,7 @@ interface SeedMembership {
   startDate: Date;
   endDate: Date;
   remainingClasses?: number;
+  status?: MembershipStatus;
 }
 
 const MEMBERSHIPS: SeedMembership[] = [
@@ -204,6 +215,7 @@ const MEMBERSHIPS: SeedMembership[] = [
     plan: 'mensual',
     startDate: daysAgo(40),
     endDate: daysAgo(10),
+    status: 'VENCIDA',
   },
 ];
 
@@ -335,12 +347,13 @@ async function seedUsers(
   const ids = {} as Record<UserKey, string>;
 
   for (const key of Object.keys(USERS) as UserKey[]) {
-    const user = USERS[key];
+    const user: SeedUser = USERS[key];
     const row = await prisma.user.upsert({
       where: { email: user.email },
       update: {
         passwordHash,
         name: user.name,
+        surname: user.surname ?? null,
         role: user.role,
         cardNumber: user.cardNumber,
         isActive: user.isActive ?? true,
@@ -349,6 +362,7 @@ async function seedUsers(
         id: user.id,
         email: user.email,
         name: user.name,
+        surname: user.surname ?? null,
         role: user.role,
         cardNumber: user.cardNumber,
         passwordHash,
@@ -365,7 +379,7 @@ async function seedPlans(): Promise<Record<PlanKey, string>> {
   const ids = {} as Record<PlanKey, string>;
 
   for (const key of Object.keys(PLANS) as PlanKey[]) {
-    const plan = PLANS[key];
+    const plan: SeedPlan = PLANS[key];
     const row = await prisma.plan.upsert({
       where: { name: plan.name },
       update: {
@@ -402,6 +416,7 @@ async function seedMemberships(
       startDate: membership.startDate,
       endDate: membership.endDate,
       remainingClasses: membership.remainingClasses ?? null,
+      status: membership.status ?? 'VIGENTE',
     };
 
     await prisma.membership.upsert({
@@ -509,7 +524,7 @@ async function seedTrainerSlots(
   const ids = {} as Record<TrainerSlotKey, string>;
 
   for (const key of Object.keys(TRAINER_SLOTS) as TrainerSlotKey[]) {
-    const slot = TRAINER_SLOTS[key];
+    const slot: SeedTrainerSlot = TRAINER_SLOTS[key];
     const trainerId = users[slot.trainer];
     const data = {
       date: slot.date,
@@ -565,6 +580,34 @@ async function seedPersonalSessions(
   });
 }
 
+/** H2: un cobro pagado por cada compra de membresía del seed. */
+async function seedMembershipCharges(
+  users: Record<UserKey, string>,
+  plans: Record<PlanKey, string>,
+): Promise<void> {
+  for (const [index, membership] of MEMBERSHIPS.entries()) {
+    const plan = PLANS[membership.plan];
+    const number = String(index + 1).padStart(4, '0');
+    const data = {
+      userId: users[membership.user],
+      planId: plans[membership.plan],
+      membershipId: membership.id,
+      amount: plan.price,
+      status: 'Pagada' as const,
+      receiptNumber: `REC-2026-${number}`,
+      concept: `Compra de plan ${plan.name}`,
+      last4: '4242',
+      paidAt: membership.startDate,
+    };
+
+    await prisma.charge.upsert({
+      where: { receiptNumber: data.receiptNumber },
+      update: data,
+      create: { id: `99999999-9999-4999-8999-00000000${number}`, ...data },
+    });
+  }
+}
+
 function printSummary(): void {
   const accounts = Object.keys(USERS) as UserKey[];
 
@@ -575,7 +618,7 @@ function printSummary(): void {
       email: USERS[key].email,
       rol: USERS[key].role,
       carné: USERS[key].cardNumber,
-      activo: USERS[key].isActive ?? true,
+      activo: (USERS[key] as SeedUser).isActive ?? true,
     })),
   );
 
@@ -609,6 +652,7 @@ async function main(): Promise<void> {
   const plans = await seedPlans();
 
   await seedMemberships(users, plans);
+  await seedMembershipCharges(users, plans);
 
   const sessions = await seedClassSessions(users);
   await seedReservations(users, sessions);
