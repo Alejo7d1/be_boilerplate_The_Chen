@@ -42,7 +42,7 @@ export class ClassesService {
 
   async cancel(id: string, reason: string): Promise<ClassSessionResponseDto> {
     try {
-      const { session, recipients } = await this.sessions.cancel(id);
+      const { session, recipients } = await this.sessions.cancel(id, reason);
 
       // Fire-and-forget: la cancelación ya está confirmada y no depende del
       // Servicio de Notificaciones.

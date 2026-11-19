@@ -141,7 +141,7 @@ export class ClassSessionRepository {
    * Cancela la clase y sus reservas activas en una sola transacción. Devuelve
    * los miembros afectados para que el servicio dispare la notificación.
    */
-  async cancel(id: string): Promise<CancelledClass> {
+  async cancel(id: string, reason: string): Promise<CancelledClass> {
     return this.prisma.$transaction(
       async (tx) => {
         const session = await tx.classSession.findUnique({
@@ -166,7 +166,7 @@ export class ClassSessionRepository {
         });
         await tx.classSession.update({
           where: { id },
-          data: { status: 'Cancelada' },
+          data: { status: 'Cancelada', cancellationReason: reason.trim() },
         });
 
         return {
