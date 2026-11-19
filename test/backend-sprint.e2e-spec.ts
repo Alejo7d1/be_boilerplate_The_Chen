@@ -615,6 +615,12 @@ describe('Backend pendiente del sprint', () => {
         .expect(200);
 
       expect(res.body).toMatchObject({ status: 'Cancelada', reservedCount: 0 });
+      await expect(
+        prisma.classSession.findUniqueOrThrow({
+          where: { id: classId },
+          select: { cancellationReason: true },
+        }),
+      ).resolves.toMatchObject({ cancellationReason: 'Falta de entrenador' });
 
       const row = await prisma.reservation.findUniqueOrThrow({
         where: { id: reservation.id },
