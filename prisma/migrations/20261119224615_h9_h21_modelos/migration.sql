@@ -263,3 +263,24 @@ ALTER TABLE "reviews" ADD CONSTRAINT "reviews_trainer_id_fkey" FOREIGN KEY ("tra
 
 -- AddForeignKey
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_id_fkey" FOREIGN KEY ("recipient_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- H16/H17: la calificación debe estar entre 1 y 5
+ALTER TABLE "reviews"
+  ADD CONSTRAINT "reviews_rating_check" CHECK ("rating" BETWEEN 1 AND 5);
+
+-- H14/H15: una máquina que no está operativa debe tener motivo
+ALTER TABLE "machines"
+  ADD CONSTRAINT "machines_reason_required_check"
+  CHECK ("status" = 'OPERATIVA' OR ("reason" IS NOT NULL AND length(btrim("reason")) > 0));
+
+-- H15: la bitácora de estados es inmutable (solo INSERT)
+CREATE OR REPLACE FUNCTION prevent_machine_status_logs_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'machine_status_logs es inmutable: % no permitido', TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER machine_status_logs_immutable
+  BEFORE UPDATE OR DELETE ON "machine_status_logs"
+  FOR EACH ROW EXECUTE FUNCTION prevent_machine_status_logs_mutation();

@@ -1084,17 +1084,11 @@ async function seedTrainerSlots(
       endTime: slot.endTime,
       isBooked: slot.isBooked ?? false,
     };
-    const row = await prisma.trainerSlot.upsert({
-      where: {
-        trainerId_date_startTime: {
-          trainerId,
-          date: slot.date,
-          startTime: slot.startTime,
-        },
-      },
-      update: data,
-      create: { id: slot.id, trainerId, ...data },
-    });
+   const row = await prisma.trainerSlot.upsert({
+  where: { id: slot.id },
+  update: { trainerId, ...data },
+  create: { id: slot.id, trainerId, ...data },
+});
     ids[key] = row.id;
   }
   return ids;
@@ -1346,8 +1340,12 @@ async function seedNotifications(
 async function syncReceiptSequence(): Promise<void> {
   if (lastReceiptSeq === 0) return;
   await prisma.$queryRaw`
-    SELECT setval(pg_get_serial_sequence('payments', 'receipt_seq'), ${lastReceiptSeq}::bigint, true)
-  `;
+  SELECT setval(
+    pg_get_serial_sequence('payments', 'receipt_seq'),
+    GREATEST(${lastReceiptSeq}::bigint, (SELECT COALESCE(MAX(receipt_seq), 0) FROM payments)),
+    true
+  )
+`;
 }
 
 function printSummary(): void {
@@ -1400,6 +1398,10 @@ function printSummary(): void {
 }
 
 async function main(): Promise<void> {
+
+  if (process.env.NODE_ENV === 'production') {
+  throw new Error('El seed de desarrollo no debe ejecutarse en producción.');
+}
   const passwordHash = await bcrypt.hash(PASSWORD, SALT_ROUNDS);
 
   const users = await seedUsers(passwordHash);
