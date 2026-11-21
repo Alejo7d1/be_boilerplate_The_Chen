@@ -83,19 +83,18 @@ cp .env.example .env
 | `NODE_ENV` | `development` | Entorno de ejecución |
 | `PORT` | `8000` | Puerto HTTP de la API (también el de producción) |
 | `POSTGRES_USER` | `postgres` | Usuario que crea el contenedor de Postgres |
-| `POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
+| `POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario. **Obligatoria** en `docker-compose.yml` |
 | `POSTGRES_DB` | `si_be_boilerplate` | Base que se crea al inicializar |
-| `POSTGRES_PORT` | `5432` | Puerto publicado en el host |
+| `POSTGRES_PORT` | `5432` | Puerto publicado en `127.0.0.1` del host |
 | `DATABASE_URL` | — | **Obligatoria.** Connection string de Prisma |
 | `JWT_SECRET` | — | **Obligatoria.** Mínimo 32 caracteres |
 | `JWT_EXPIRES_IN` | `15m` | Vigencia del access token |
 | `REFRESH_TOKEN_EXPIRES_IN_DAYS` | `7` | Vigencia del refresh token |
 | `BCRYPT_SALT_ROUNDS` | `12` | Cost factor de bcrypt |
-| `NOTIFICATIONS_URL` | `http://localhost:8000/api/notifications/send` | Servicio de Notificaciones que recibe la cancelación de clases (H6) |
 | `TEST_POSTGRES_USER` | `postgres` | Usuario del Postgres local de [docker-compose.test.yml](docker-compose.test.yml) |
 | `TEST_POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
 | `TEST_POSTGRES_DB` | `si_be_boilerplate_test` | Base que crea ese contenedor al inicializarse |
-| `TEST_POSTGRES_PORT` | `5433` | Puerto publicado en el host |
+| `TEST_POSTGRES_PORT` | `5433` | Puerto publicado en `127.0.0.1` del host |
 
 > La app **valida el entorno al arrancar** ([env.validation.ts](src/config/env.validation.ts)). Si falta `DATABASE_URL` o `JWT_SECRET`, o si el secreto es más corto que 32 caracteres, falla de inmediato con un mensaje claro en lugar de romperse más tarde.
 
@@ -166,7 +165,7 @@ Verificá que responde:
 
 ```bash
 curl http://localhost:8000/api
-# Hello World!
+# {"status":"ok","service":"si_be_boilerplate","uptime":12,"timestamp":"2026-11-21T20:16:44.000Z"}
 ```
 
 ### Opción C: base local de desarrollo y pruebas (recomendado para el equipo)
@@ -234,6 +233,8 @@ Define dos servicios:
 - **Volumen nombrado `pgdata`**, así los datos sobreviven a `docker compose down`.
 - **Montado en `/var/lib/postgresql`**, *no* en `/var/lib/postgresql/data`. Postgres 18 cambió el layout y guarda los datos en un subdirectorio con el número de major version; usar la ruta vieja hace que el contenedor entre en un loop de reinicios.
 - **`healthcheck` con `pg_isready`**, para que el servicio `api` no arranque hasta que la base acepte conexiones. Sin esto las migraciones fallan de forma intermitente al levantar todo junto.
+- **Publicado solo en `127.0.0.1`**, no en `0.0.0.0`. La base queda accesible desde el host y desde Caddy, pero no desde Internet. Exponer el 5432 con una contraseña por defecto fue el vector de un incidente real: un tercero creó un superusuario, reescribió `pg_hba.conf` y se persistió vía `ALTER SYSTEM SET archive_command`.
+- **`POSTGRES_PASSWORD` obligatoria**: el compose ya no cae en `postgres`/`postgres` si falta el `.env`.
 
 **`api`** construye y corre la aplicación a partir del `Dockerfile`, espera el healthcheck de `postgres` (`condition: service_healthy`) y al arrancar ejecuta `prisma migrate deploy && node dist/main.js`.
 
@@ -590,6 +591,7 @@ Definidos en [tsconfig.json](tsconfig.json):
 | `@Common/*` | `src/common/*/index.ts` |
 | `@Config` | `src/config/index.ts` |
 | `@Equipment`, `@Equipment/*` | `src/equipment/…` |
+| `@Access`, `@Charges`, `@Payments`, `@Routines`, `@Progress`, `@Reviews`, `@Reports` (y `@ClassSessions`, `@Memberships`, `@Plans`, `@Reservations`, `@Trainers`, `@PersonalSessions`, `@Notifications`) | `src/<módulo>/…`, con el mismo patrón `@Módulo` + `@Módulo/*` |
 | `@PrismaClient` | Cliente generado de Prisma |
 
 ### Dos detalles que hacen que esto funcione

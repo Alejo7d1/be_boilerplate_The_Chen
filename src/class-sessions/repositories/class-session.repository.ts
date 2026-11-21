@@ -31,7 +31,8 @@ export interface ClassData {
 
 export interface CancelledClass {
   session: ClassRow;
-  recipients: { email: string; name: string }[];
+  /** `id` es lo que necesita el despacho de notificaciones; email/name quedan para el mensaje. */
+  recipients: { id: string; email: string; name: string }[];
 }
 
 @Injectable()
@@ -151,7 +152,9 @@ export class ClassSessionRepository {
             trainer: { select: { email: true, name: true } },
             reservations: {
               where: { status: 'Activa' },
-              include: { member: { select: { email: true, name: true } } },
+              include: {
+                member: { select: { id: true, email: true, name: true } },
+              },
             },
           },
         });

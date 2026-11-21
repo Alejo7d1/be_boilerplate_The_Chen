@@ -12,12 +12,14 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ErrorResponseDto } from '@Common/dto';
-import { UserRole } from '@PrismaClient';
-import { Public, Roles } from '@Auth/decorators';
+import { UserRole, type User } from '@PrismaClient';
+import { CurrentUser, Public, Roles } from '@Auth/decorators';
 import { UsersService } from '@Users/services';
 import {
   CreateUserDto,
   ListUsersQueryDto,
+  MemberOptionListResponseDto,
+  MemberOptionResponseDto,
   UserListResponseDto,
   UserResponseDto,
 } from '@Users/dto';
@@ -53,17 +55,19 @@ export class UsersController {
   }
 
   /**
-   * Padrón de miembros para el selector de compra/renovación (BE-2.2).
-   * No expone hash de contraseña ni datos de pago.
+   * Padrón de miembros para el selector de compra/renovación (BE-2.2) y para
+   * que el entrenador asigne rutinas (H12). Nunca expone hash de contraseña ni
+   * datos de pago.
    */
   @Get()
-  @Roles('RECEPCION_ADMIN')
+  @Roles('RECEPCION_ADMIN', 'ENTRENADOR')
   @ApiBearerAuth()
   @ApiQuery({
     name: 'role',
     required: false,
     enum: UserRole,
-    description: 'Rol a listar. Por defecto MIEMBRO.',
+    description:
+      'Rol a listar. Por defecto MIEMBRO; el rol ENTRENADOR siempre recibe miembros.',
   })
   @ApiQuery({
     name: 'search',
@@ -74,22 +78,41 @@ export class UsersController {
   @ApiOperation({
     summary: 'Lista y busca miembros por rol',
     description:
-      'Padrón para el selector de compra/renovación. Por defecto filtra MIEMBRO; search busca en nombre, email y carné. No expone contraseñas ni datos de pago.',
+      'Padrón para el selector de compra/renovación y para asignar rutinas. Por defecto filtra MIEMBRO; search busca en nombre, email y carné. Un ENTRENADOR solo recibe `id`, `name` y `cardNumber` de los miembros.',
   })
-  @ApiOkResponse({ type: UserListResponseDto })
+  @ApiOkResponse({
+    type: UserListResponseDto,
+    description:
+      '`{ data: UserResponseDto[] }`; para el rol ENTRENADOR, `{ data: MemberOptionResponseDto[] }`.',
+  })
   @ApiUnauthorizedResponse({
     type: ErrorResponseDto,
     description: 'Token ausente o inválido',
   })
   @ApiForbiddenResponse({
     type: ErrorResponseDto,
-    description: 'Rol distinto de RECEPCION_ADMIN',
+    description: 'Rol distinto de RECEPCION_ADMIN o ENTRENADOR',
   })
-  async list(@Query() query: ListUsersQueryDto): Promise<UserListResponseDto> {
+  async list(
+    @Query() query: ListUsersQueryDto,
+    @CurrentUser() user: User,
+  ): Promise<UserListResponseDto | MemberOptionListResponseDto> {
+    if (user.role === UserRole.ENTRENADOR) {
+      const members = await this.usersService.listByRole(
+        UserRole.MIEMBRO,
+        query.search,
+      );
+      return {
+        data: members.map((member) =>
+          MemberOptionResponseDto.fromEntity(member),
+        ),
+      };
+    }
+
     const users = await this.usersService.listByRole(
       query.role ?? UserRole.MIEMBRO,
       query.search,
     );
-    return { data: users.map((user) => UserResponseDto.fromEntity(user)) };
+    return { data: users.map((entity) => UserResponseDto.fromEntity(entity)) };
   }
 }

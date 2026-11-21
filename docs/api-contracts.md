@@ -50,6 +50,19 @@ La navegación se define en [`lib/navigation.ts`](../lib/navigation.ts). Una ent
 | Entrenadores | `POST` | `/api/personal-sessions` | `MIEMBRO` |
 | Pagos | `GET` | `/api/charges/pending` | `RECEPCION_ADMIN` |
 | Pagos | `POST` | `/api/payments/process` | `MIEMBRO` |
+| Accesos | `POST` | `/api/access/check-in` | `RECEPCION_ADMIN` |
+| Entrenamiento | `POST` | `/api/routines` | `ENTRENADOR` |
+| Entrenamiento | `POST` | `/api/progress` | `MIEMBRO` |
+| Entrenamiento | `GET` | `/api/progress` | `MIEMBRO` |
+| Reseñas | `POST` | `/api/reviews` | `MIEMBRO` |
+| Reseñas | `GET` | `/api/reviews/analytics` | `RECEPCION_ADMIN` |
+| Reportes | `GET` | `/api/reports/occupancy` | `RECEPCION_ADMIN` |
+| Reportes | `GET` | `/api/reports/financial` | `RECEPCION_ADMIN` |
+| Equipos | `GET` | `/api/equipment` | Autenticados |
+| Equipos | `PATCH` | `/api/equipment/:id/status` | `RECEPCION_ADMIN` |
+| Notificaciones | `GET` | `/api/notifications/me` | Autenticados |
+| Notificaciones | `PATCH` | `/api/notifications/:id/read` | Autenticados |
+| Notificaciones | `POST` | `/api/notifications/send` | `RECEPCION_ADMIN` · `ENTRENADOR` (solo sus miembros) |
 
 ## Tipos compartidos
 

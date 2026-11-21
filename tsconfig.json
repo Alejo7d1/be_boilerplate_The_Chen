@@ -63,7 +63,21 @@
       "@Notifications": ["./src/notifications/index.ts"],
       "@Notifications/*": ["./src/notifications/*/index.ts"],
       "@Equipment": ["./src/equipment/index.ts"],
-      "@Equipment/*": ["./src/equipment/*/index.ts"]
+      "@Equipment/*": ["./src/equipment/*/index.ts"],
+      "@Access": ["./src/access/index.ts"],
+      "@Access/*": ["./src/access/*/index.ts"],
+      "@Charges": ["./src/charges/index.ts"],
+      "@Charges/*": ["./src/charges/*/index.ts"],
+      "@Payments": ["./src/payments/index.ts"],
+      "@Payments/*": ["./src/payments/*/index.ts"],
+      "@Routines": ["./src/routines/index.ts"],
+      "@Routines/*": ["./src/routines/*/index.ts"],
+      "@Progress": ["./src/progress/index.ts"],
+      "@Progress/*": ["./src/progress/*/index.ts"],
+      "@Reviews": ["./src/reviews/index.ts"],
+      "@Reviews/*": ["./src/reviews/*/index.ts"],
+      "@Reports": ["./src/reports/index.ts"],
+      "@Reports/*": ["./src/reports/*/index.ts"]
     }
   }
 }
