@@ -80,7 +80,7 @@ vencido se trata como sesión inexistente.
 | 24 | `POST` | `/api/payments/process` | `MIEMBRO` | pago |
 | 25 | `POST` | `/api/routines` | `ENTRENADOR` | rutinas |
 | 26 | `POST` | `/api/progress` | `MIEMBRO` | registro de progreso |
-| 27 | `GET` | `/api/progress` | `MIEMBRO` | **historial de progreso (no publicado)** |
+| 27 | `GET` | `/api/progress` | `MIEMBRO` | historial de progreso |
 | 28 | `POST` | `/api/reviews` | `MIEMBRO` | reseñas |
 | 29 | `GET` | `/api/reviews/analytics` | `RECEPCION_ADMIN` | reporte de reseñas |
 | 30 | `GET` | `/api/reports/occupancy` | `RECEPCION_ADMIN` | reporte de ocupación |
@@ -89,7 +89,7 @@ vencido se trata como sesión inexistente.
 | 33 | `PATCH` | `/api/equipment/:id/status` | `RECEPCION_ADMIN` | administración de equipos |
 | 34 | `GET` | `/api/notifications/me` | Autenticados | campana de notificaciones |
 | 35 | `PATCH` | `/api/notifications/:id/read` | Autenticados | campana de notificaciones |
-| 36 | `POST` | `/api/notifications/send` | — | **Declarada en el front, sin consumidor** (ver §4) |
+| 36 | `POST` | `/api/notifications/send` | `RECEPCION_ADMIN` · `ENTRENADOR` | envío manual de avisos |
 
 > Las rutas 1, 2 y 3 comparten el recurso `/api/users` con propósitos distintos.
 
@@ -450,7 +450,7 @@ Query: `page`, `limit` (siempre enviados, `limit=10`), y opcionales `startDate`,
 
 `progressId` obligatorio. Las métricas se completan con lo enviado; `date` se toma de la respuesta si viene.
 
-#### `GET /api/progress` · `MIEMBRO` — **NO PUBLICADO (hoy responde `404`)**
+#### `GET /api/progress` · `MIEMBRO`
 
 Contrato esperado (la pantalla ya está preparada para consumirlo):
 
@@ -464,7 +464,6 @@ Contrato esperado (la pantalla ya está preparada para consumirlo):
 - Por registro son obligatorios `progressId` (o `id`), `date`, `weight`, `waist`, `chest`.
 - `strengthMarks` debe ser un array de strings (los valores no textuales se descartan).
 - Debe devolver **solo el historial del miembro autenticado**, ordenado por fecha descendente.
-- Mientras responda `404`, la UI muestra “sin historial disponible” (no es un error).
 
 ### 3.10 Reseñas
 
@@ -518,8 +517,7 @@ Query obligatoria: `startDate`, `endDate`. Opcional: `classId`.
 ] }
 ```
 
-Todos los campos son opcionales en el adaptador, pero **hoy la API solo devuelve
-`className` y `occupancyPercentage`**, por lo que la tabla muestra fecha, cupos y tasa vacíos.
+Todos los campos son opcionales en el adaptador. La API los devuelve completos.
 
 #### `GET /api/reports/financial` · `RECEPCION_ADMIN`
 
@@ -530,8 +528,7 @@ Query obligatoria: `startDate`, `endDate`.
   "renewals": 8, "renewalRate": 44.4 }
 ```
 
-Todos los campos son opcionales, pero **hoy la API solo devuelve `totalRevenue` y `renovationRate`**
-(grafía distinta), así que período, cantidad de pagos y renovaciones aparecen vacíos.
+Todos los campos son opcionales, pero la API los devuelve completos (`renewalRate` incluida).
 
 ### 3.12 Equipos
 
@@ -589,36 +586,70 @@ válido aquí, porque `unreadCount` viaja en el mismo nivel que la lista).
 Debe devolver la **notificación completa actualizada** (mismos obligatorios que el listado).
 `404` si no existe o no pertenece al usuario autenticado.
 
+#### `POST /api/notifications/send` · `RECEPCION_ADMIN` · `ENTRENADOR`
+
+Despacho manual: crea una notificación **por destinatario** (cada uno la ve en su bandeja con su
+propio estado de lectura).
+
+```json
+// Request
+{
+  "recipientIds": ["9f0f5f8e-1f0e-4b0e-9c3f-1a2b3c4d5e6f"],
+  "title": "Membresía por vencer",
+  "message": "Tu membresía vence en 3 días.",
+  "sourceModule": "MEMBRESIA",
+  "referenceId": "b3c2a1d0-0000-4000-8000-000000000001"
+}
+
+// Response 201
+{ "sent": 1, "notificationIds": ["5c1e..."] }
+```
+
+| Campo | Obligatorio | Regla |
+| --- | --- | --- |
+| `recipientIds` | ✅ | 1 a 50 UUID v4; se deduplican |
+| `title` | ✅ | 1 a 100 caracteres |
+| `message` | ✅ | 1 a 500 caracteres |
+| `sourceModule` | ✅ | `MEMBRESIA` · `CLASES` · `PAGOS` · `EQUIPAMIENTO` |
+| `referenceId` | — | máx. 100 caracteres |
+
+- `403` si un `ENTRENADOR` incluye a alguien sin vínculo (clase, sesión personal o rutina).
+- `404` si algún destinatario no existe o está inactivo. No hay envío parcial.
+- El `ValidationPipe` global usa `forbidNonWhitelisted`: un campo extra en el cuerpo responde `400`.
+
+Detalle de integración para el FE: [`docs/notifications-send.md`](./notifications-send.md).
+
+#### Avisos automáticos
+
+`PATCH /api/classes/:id/cancel` ya no depende de un servicio externo: al cancelar, el backend crea
+una notificación `CLASES` («Clase cancelada») para cada miembro con reserva activa, con la clase en
+`referenceId`. El FE **no** debe llamar a `/notifications/send` para ese caso.
+
 ---
 
 ## 4. Huecos y problemas de integración detectados
 
 Todo lo siguiente provoca pantallas vacías, mensajes genéricos o funcionalidad degradada.
 
-### 4.1 `GET /api/progress` no existe
+### 4.1 `GET /api/progress` — resuelto
 
-`404` en cada visita a `/progress`. La UI lo tolera (muestra “sin historial”), pero la historia
-de consulta de progreso no es funcional. **Acción:** publicar el endpoint de §3.9.
+Publicado en §3.9: devuelve solo el historial del miembro autenticado, ordenado por fecha descendente.
 
-### 4.2 `GET /api/users` bloquea al rol `ENTRENADOR`
+### 4.2 `GET /api/users` — resuelto para `ENTRENADOR`
 
-`GET /api/users` exige `RECEPCION_ADMIN`, pero la pantalla `/trainer/routines` necesita buscar
-miembros. El entrenador recibe `403` y la UI cae al modo “escribe el identificador a mano”.
-
-**Opciones:** permitir `ENTRENADOR` con `role=MIEMBRO` (solo campos `id`/`name`/`cardNumber`), o exponer
-un endpoint acotado (`GET /api/trainers/:id/members`).
+`GET /api/users` acepta `ENTRENADOR` y, en ese caso, siempre devuelve miembros con los campos
+`id`, `name` y `cardNumber` (sin correo). `RECEPCION_ADMIN` sigue recibiendo el padrón completo.
 
 ### 4.3 `endTime` fijo en la disponibilidad
 
 `GET /api/trainers/:id/availability` devuelve siempre `endTime: "11:00"` sin importar `startTime`.
 La UI lo ignora y calcula `startTime + 60 min`, pero cualquier otro consumidor recibirá datos falsos.
 
-### 4.4 Reportes incompletos
+### 4.4 Reportes — resuelto
 
-- `GET /api/reports/financial`: solo `{ totalRevenue, renovationRate }` → faltan `period`,
-  `paymentCount`, `renewals` y la grafía correcta `renewalRate`.
-- `GET /api/reports/occupancy`: solo `{ className, occupancyPercentage }` → faltan `id`, `date`,
-  `startTime`, `maxCapacity`, `reservedCount`, `availableSpots`, `occupancyRate`.
+- `GET /api/reports/financial`: devuelve `period`, `totalRevenue`, `paymentCount`, `renewals` y `renewalRate`.
+- `GET /api/reports/occupancy`: devuelve `id`, `className`, `date`, `startTime`, `maxCapacity`,
+  `reservedCount`, `availableSpots`, `occupancyRate` y `occupancyPercentage`.
 
 ### 4.5 Envoltorios inconsistentes
 
@@ -636,11 +667,11 @@ una copy genérica por código (`403`, `404`, `409`, `400`). Enviar siempre el c
 si devuelven cuerpo, debe ser el **DTO completo**; un cuerpo parcial (`{ "id": "..." }`) provoca error
 de contrato. Alternativa válida: `204` sin cuerpo.
 
-### 4.8 Campos obligatorios que hoy faltan
+### 4.8 Campos obligatorios — resuelto
 
-- `GET /api/memberships/me`: `remainingClasses` debe venir siempre (`null` = ilimitado).
-- `GET /api/notifications/me`: `unreadCount` debe venir siempre (`0` incluido).
-- `GET /api/class-sessions`: `trainerName` (o `trainer.name`) y los cupos (`availableSpots` o `reservedCount`).
+- `GET /api/memberships/me`: `remainingClasses` siempre presente (`null` = ilimitado).
+- `GET /api/notifications/me`: `unreadCount` siempre presente (`0` incluido).
+- `GET /api/class-sessions`: `trainerName` y los cupos (`availableSpots` / `reservedCount`).
 - `GET /api/charges/pending`: `amount` en cada cobro.
 
 ### 4.9 Grafías sensibles a mayúsculas
@@ -654,10 +685,11 @@ Estos valores se comparan por texto y **no** se normalizan:
 | `reservations.status` | debe contener `activ` o `cancel` |
 | `login.user.role` | `MIEMBRO` · `ENTRENADOR` · `RECEPCION_ADMIN` |
 
-### 4.10 `POST /api/notifications/send` sin consumidor
+### 4.10 `POST /api/notifications/send` — resuelto
 
-La ruta está declarada en [`lib/api-routes.ts`](../lib/api-routes.ts) pero el frontend no la invoca.
-No es necesaria para la integración actual; si el backend la expone, ningún flujo la usa todavía.
+Publicado en §3.13 como despacho manual (`RECEPCION_ADMIN` y `ENTRENADOR` acotado a sus miembros).
+El FE lo consume desde `lib/api-routes.ts`; el detalle está en
+[`docs/notifications-send.md`](./notifications-send.md).
 
 ---
 

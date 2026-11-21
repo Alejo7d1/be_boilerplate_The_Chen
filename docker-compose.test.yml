@@ -16,7 +16,10 @@ services:
       POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${TEST_POSTGRES_DB:-si_be_boilerplate_test}
     ports:
-      - '${TEST_POSTGRES_PORT:-5433}:5432'
+      # Solo en loopback: la base de pruebas tampoco debe quedar expuesta.
+      - '127.0.0.1:${TEST_POSTGRES_PORT:-5433}:5432'
+    security_opt:
+      - no-new-privileges:true
     volumes:
       # Postgres 18+ guarda los datos en un subdirectorio con la versión major.
       - pgdata_test:/var/lib/postgresql

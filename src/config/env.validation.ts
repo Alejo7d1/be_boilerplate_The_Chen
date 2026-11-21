@@ -14,7 +14,6 @@ export interface EnvConfig {
   JWT_EXPIRES_IN: string;
   REFRESH_TOKEN_EXPIRES_IN_DAYS: number;
   BCRYPT_SALT_ROUNDS: number;
-  NOTIFICATIONS_URL: string;
 }
 
 const requiredVars = ['DATABASE_URL', 'JWT_SECRET'] as const;
@@ -105,10 +104,5 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
       7,
     ),
     BCRYPT_SALT_ROUNDS: readInt(raw, 'BCRYPT_SALT_ROUNDS', 12),
-    NOTIFICATIONS_URL: readString(
-      raw,
-      'NOTIFICATIONS_URL',
-      'http://localhost:8000/api/notifications/send',
-    ),
   };
 }

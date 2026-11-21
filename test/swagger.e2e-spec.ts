@@ -51,8 +51,10 @@ describe('Documentación Swagger', () => {
     ).flatMap((path) => Object.values(path));
 
     // 25 operaciones previas + /notifications/me, /notifications/{id}/read,
-    // /equipment y /equipment/{id}/status.
-    expect(operations).toHaveLength(29);
+    // /equipment y /equipment/{id}/status + access, charges, payments,
+    // routines, progress (x2), reviews (x2), reports (x2) y
+    // /notifications/send.
+    expect(operations).toHaveLength(40);
     for (const operation of operations as Array<{
       description?: string;
       tags?: string[];
@@ -76,8 +78,18 @@ describe('Documentación Swagger', () => {
         '/trainer-availability',
         '/personal-sessions',
         '/notifications/me',
+        '/notifications/send',
         '/equipment',
         '/equipment/{id}/status',
+        '/access/check-in',
+        '/charges/pending',
+        '/payments/process',
+        '/routines',
+        '/progress',
+        '/reviews',
+        '/reviews/analytics',
+        '/reports/occupancy',
+        '/reports/financial',
       ]),
     );
   });

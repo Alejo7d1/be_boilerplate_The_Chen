@@ -16,8 +16,11 @@ describe('HealthController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(healthController.getHello()).toBe('Hello World!');
+    it('devuelve el estado del servicio', () => {
+      expect(healthController.check()).toMatchObject({
+        status: 'ok',
+        service: 'si_be_boilerplate',
+      });
     });
   });
 });

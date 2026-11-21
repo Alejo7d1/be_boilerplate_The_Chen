@@ -15,6 +15,13 @@ import { PersonalSessionsModule } from '@PersonalSessions';
 import { PlansModule } from '@Plans';
 import { ReservationsModule } from '@Reservations';
 import { TrainersModule } from '@Trainers';
+import { AccessModule } from '@Access';
+import { ChargesModule } from '@Charges';
+import { PaymentsModule } from '@Payments';
+import { ProgressModule } from '@Progress';
+import { ReportsModule } from '@Reports';
+import { ReviewsModule } from '@Reviews';
+import { RoutinesModule } from '@Routines';
 
 @Module({
   imports: [
@@ -36,6 +43,13 @@ import { TrainersModule } from '@Trainers';
     PersonalSessionsModule,
     NotificationsModule,
     EquipmentModule,
+    AccessModule,
+    ChargesModule,
+    PaymentsModule,
+    RoutinesModule,
+    ProgressModule,
+    ReviewsModule,
+    ReportsModule,
   ],
   providers: [
     {

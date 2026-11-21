@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationsService } from '@Notifications/services';
+import { UserNotificationsService } from '@Notifications/services';
 import { ClassInputDto, ClassSessionResponseDto } from '../dto/index.js';
 import {
   ClassNotCancellableError,
@@ -20,7 +20,7 @@ import {
 export class ClassesService {
   constructor(
     private readonly sessions: ClassSessionRepository,
-    private readonly notifications: NotificationsService,
+    private readonly notifications: UserNotificationsService,
   ) {}
 
   async create(dto: ClassInputDto): Promise<ClassSessionResponseDto> {
@@ -45,13 +45,14 @@ export class ClassesService {
     try {
       const { session, recipients } = await this.sessions.cancel(id, reason);
 
-      // Fire-and-forget: la cancelación ya está confirmada y no depende del
-      // Servicio de Notificaciones.
+      // Fire-and-forget: la cancelación ya está confirmada y no depende de
+      // que se puedan guardar las notificaciones (el servicio lo registra).
+      // Se persisten en proceso: antes se hacía un POST HTTP al propio backend
+      // en /api/notifications/send, que respondía 404 y no avisaba a nadie.
       void this.notifications.notifyClassCancelled({
-        type: 'CLASS_CANCELLED',
         classId: session.id,
         className: session.name,
-        startsAt: session.startsAt.toISOString(),
+        startsAt: session.startsAt,
         reason,
         recipients,
       });
