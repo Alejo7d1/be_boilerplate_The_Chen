@@ -61,7 +61,9 @@
       "@PersonalSessions": ["./src/personal-sessions/index.ts"],
       "@PersonalSessions/*": ["./src/personal-sessions/*/index.ts"],
       "@Notifications": ["./src/notifications/index.ts"],
-      "@Notifications/*": ["./src/notifications/*/index.ts"]
+      "@Notifications/*": ["./src/notifications/*/index.ts"],
+      "@Equipment": ["./src/equipment/index.ts"],
+      "@Equipment/*": ["./src/equipment/*/index.ts"]
     }
   }
 }
