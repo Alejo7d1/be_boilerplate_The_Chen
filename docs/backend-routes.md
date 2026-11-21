@@ -13,7 +13,7 @@ Contratos por dominio: [`lib/api/`](../lib/api). Tipos: [`lib/types/`](../lib/ty
 
 | Aspecto | Comportamiento del frontend |
 | --- | --- |
-| Base URL | Variable de entorno `API_URL` (ej. `http://localhost:7758`). Las rutas se resuelven contra esa base: `API_URL + /api/...` |
+| Base URL | Variable de entorno `API_URL` (ej. `http://localhost:8000`). Las rutas se resuelven contra esa base: `API_URL + /api/...` |
 | Origen de las llamadas | **Siempre desde el servidor de Next.js** (Server Components y Server Actions). El navegador nunca llama al backend directamente → **CORS no es necesario** |
 | Autenticación | `Authorization: Bearer <JWT>` en todas las llamadas salvo `POST /api/auth/login` |
 | `Content-Type` | `application/json` en **todas** las peticiones (incluye `GET` y `DELETE` sin cuerpo) |
@@ -665,16 +665,16 @@ No es necesaria para la integración actual; si el backend la expone, ningún fl
 
 ```bash
 # Login y captura del token
-curl -s -X POST http://localhost:7758/api/auth/login \
+curl -s -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"ana@club.com","password":"secreto"}'
 
 # Listados base
-curl -s http://localhost:7758/api/class-sessions      -H "Authorization: Bearer $TOKEN"
-curl -s http://localhost:7758/api/plans               -H "Authorization: Bearer $TOKEN"
-curl -s http://localhost:7758/api/trainers            -H "Authorization: Bearer $TOKEN"
-curl -s http://localhost:7758/api/equipment           -H "Authorization: Bearer $TOKEN"
-curl -s "http://localhost:7758/api/reports/financial?startDate=2026-11-01&endDate=2026-11-30" \
+curl -s http://localhost:8000/api/class-sessions      -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8000/api/plans               -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8000/api/trainers            -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8000/api/equipment           -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8000/api/reports/financial?startDate=2026-11-01&endDate=2026-11-30" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

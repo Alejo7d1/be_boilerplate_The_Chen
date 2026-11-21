@@ -87,7 +87,7 @@ Las páginas y las Server Actions **no** llaman a `apiFetch` directamente: lo ha
 
 ## Contrato confirmado con el backend de pruebas
 
-Verificado contra `API de pruebas` (`http://localhost:7758`). Estas son las respuestas reales que consumen los adaptadores de `lib/api/`.
+Verificado contra `API de pruebas` (`http://localhost:8000`). Estas son las respuestas reales que consumen los adaptadores de `lib/api/`.
 
 | Endpoint | Respuesta |
 | --- | --- |

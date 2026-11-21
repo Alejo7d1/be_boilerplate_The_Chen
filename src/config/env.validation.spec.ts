@@ -12,7 +12,7 @@ describe('validateEnv', () => {
     });
 
     expect(env.DATABASE_URL).toContain('si_be_boilerplate_dev');
-    expect(env.PORT).toBe(7758);
+    expect(env.PORT).toBe(8000);
   });
 
   it('rechaza la base de pruebas como base de desarrollo', () => {

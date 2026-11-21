@@ -95,7 +95,7 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
 
   return {
     NODE_ENV: nodeEnv,
-    PORT: readInt(raw, 'PORT', 7758),
+    PORT: readInt(raw, 'PORT', 8000),
     DATABASE_URL: databaseUrl,
     JWT_SECRET: jwtSecret,
     JWT_EXPIRES_IN: readString(raw, 'JWT_EXPIRES_IN', '15m'),
@@ -108,7 +108,7 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
     NOTIFICATIONS_URL: readString(
       raw,
       'NOTIFICATIONS_URL',
-      'http://localhost:7758/api/notifications/send',
+      'http://localhost:8000/api/notifications/send',
     ),
   };
 }
