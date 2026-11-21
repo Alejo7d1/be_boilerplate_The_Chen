@@ -14,6 +14,7 @@ export interface EnvConfig {
   JWT_EXPIRES_IN: string;
   REFRESH_TOKEN_EXPIRES_IN_DAYS: number;
   BCRYPT_SALT_ROUNDS: number;
+  NOTIFICATIONS_URL: string;
 }
 
 const requiredVars = ['DATABASE_URL', 'JWT_SECRET'] as const;
@@ -69,13 +70,45 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
     );
   }
 
+  const nodeEnv = readString(raw, 'NODE_ENV', 'development');
+  const databaseUrl = readString(raw, 'DATABASE_URL', '');
+
+  if (nodeEnv !== 'test') {
+    let parsedDatabaseUrl: URL;
+    try {
+      parsedDatabaseUrl = new URL(databaseUrl);
+    } catch {
+      throw new Error('DATABASE_URL debe ser una URL PostgreSQL válida.');
+    }
+
+    const databaseName = parsedDatabaseUrl.pathname.replace(/^\/+/, '');
+    if (
+      databaseName.includes('_test') ||
+      databaseName.endsWith('-test') ||
+      parsedDatabaseUrl.port === '5433'
+    ) {
+      throw new Error(
+        'DATABASE_URL apunta a la base de pruebas (5433). Configurá PostgreSQL de desarrollo en 5432.',
+      );
+    }
+  }
+
   return {
-    NODE_ENV: readString(raw, 'NODE_ENV', 'development'),
+    NODE_ENV: nodeEnv,
     PORT: readInt(raw, 'PORT', 3000),
-    DATABASE_URL: readString(raw, 'DATABASE_URL', ''),
+    DATABASE_URL: databaseUrl,
     JWT_SECRET: jwtSecret,
     JWT_EXPIRES_IN: readString(raw, 'JWT_EXPIRES_IN', '15m'),
-    REFRESH_TOKEN_EXPIRES_IN_DAYS: readInt(raw, 'REFRESH_TOKEN_EXPIRES_IN_DAYS', 7),
+    REFRESH_TOKEN_EXPIRES_IN_DAYS: readInt(
+      raw,
+      'REFRESH_TOKEN_EXPIRES_IN_DAYS',
+      7,
+    ),
     BCRYPT_SALT_ROUNDS: readInt(raw, 'BCRYPT_SALT_ROUNDS', 12),
+    NOTIFICATIONS_URL: readString(
+      raw,
+      'NOTIFICATIONS_URL',
+      'http://localhost:3000/api/notifications/send',
+    ),
   };
 }
