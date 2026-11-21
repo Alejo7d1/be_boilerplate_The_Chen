@@ -8,7 +8,9 @@ import { PrismaModule } from '@Prisma';
 import { UsersModule } from '@Users';
 import { validateEnv } from '@Config';
 import { ClassSessionsModule } from '@ClassSessions';
+import { EquipmentModule } from '@Equipment';
 import { MembershipsModule } from '@Memberships';
+import { NotificationsModule } from '@Notifications';
 import { PersonalSessionsModule } from '@PersonalSessions';
 import { PlansModule } from '@Plans';
 import { ReservationsModule } from '@Reservations';
@@ -32,6 +34,8 @@ import { TrainersModule } from '@Trainers';
     ReservationsModule,
     TrainersModule,
     PersonalSessionsModule,
+    NotificationsModule,
+    EquipmentModule,
   ],
   providers: [
     {

@@ -12,6 +12,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export interface ClassRow {
   id: string;
   name: string;
+  trainerId: string;
   trainerName: string;
   startsAt: Date;
   durationMin: number;
@@ -173,6 +174,7 @@ export class ClassSessionRepository {
           session: {
             id: session.id,
             name: session.name,
+            trainerId: session.trainerId,
             trainerName: session.trainer.name || session.trainer.email,
             startsAt: session.startsAt,
             durationMin: session.durationMin,
@@ -192,6 +194,7 @@ export class ClassSessionRepository {
   private toRow(row: {
     id: string;
     name: string;
+    trainerId: string;
     startsAt: Date;
     durationMin: number;
     capacity: number;
@@ -202,6 +205,7 @@ export class ClassSessionRepository {
     return {
       id: row.id,
       name: row.name,
+      trainerId: row.trainerId,
       trainerName: row.trainer.name || row.trainer.email,
       startsAt: row.startsAt,
       durationMin: row.durationMin,

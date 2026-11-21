@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { NotificationsService } from '@Notifications/services';
-import { ClassInputDto, type ClassSessionResponseDto } from '../dto/index.js';
+import { ClassInputDto, ClassSessionResponseDto } from '../dto/index.js';
 import {
   ClassNotCancellableError,
   TrainerNotFoundError,
@@ -13,6 +13,7 @@ import {
 import {
   ClassSessionRepository,
   type ClassData,
+  type ClassRow,
 } from '../repositories/index.js';
 
 @Injectable()
@@ -114,26 +115,7 @@ export class ClassesService {
     return startsAt;
   }
 
-  private toResponse(row: {
-    id: string;
-    name: string;
-    trainerName: string;
-    startsAt: Date;
-    durationMin: number;
-    capacity: number;
-    reservedCount: number;
-    status: string;
-  }): ClassSessionResponseDto {
-    return {
-      id: row.id,
-      name: row.name,
-      trainerName: row.trainerName,
-      startsAt: row.startsAt.toISOString(),
-      durationMin: row.durationMin,
-      capacity: row.capacity,
-      availableSpots: Math.max(row.capacity - row.reservedCount, 0),
-      reservedCount: row.reservedCount,
-      status: row.status,
-    };
+  private toResponse(row: ClassRow): ClassSessionResponseDto {
+    return ClassSessionResponseDto.fromRow(row);
   }
 }

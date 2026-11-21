@@ -6,6 +6,7 @@ import { Prisma, UserRole, type User } from '@PrismaClient';
 
 /** Código de Prisma para violación de restricción única. */
 const UNIQUE_CONSTRAINT_VIOLATION = 'P2002';
+const CARD_NUMBER_COLUMN = 'card_number';
 const CARD_NUMBER_ATTEMPTS = 12;
 
 export interface CreateUserData {
@@ -93,13 +94,47 @@ export class UserRepository {
   private isCardNumberConflict(
     error: Prisma.PrismaClientKnownRequestError,
   ): boolean {
+    return this.violatedUniqueIndex(error).includes(CARD_NUMBER_COLUMN);
+  }
+
+  /**
+   * Índice único que violó el `P2002`, en una sola cadena.
+   *
+   * El motor clásico lo expone en `meta.target`, pero con el driver adapter de
+   * Prisma 7 ese campo no viene: el índice llega dentro de
+   * `meta.driverAdapterError.cause`. Se leen ambas formas para no depender de
+   * la versión del cliente ni del motor.
+   */
+  private violatedUniqueIndex(
+    error: Prisma.PrismaClientKnownRequestError,
+  ): string {
     const target = error.meta?.target;
-    const fields = Array.isArray(target)
+    const fromTarget = Array.isArray(target)
       ? target.join(',')
       : typeof target === 'string'
         ? target
-        : JSON.stringify(target ?? '');
-    return fields.includes('card_number');
+        : '';
+
+    const cause = (
+      error.meta as
+        | {
+            driverAdapterError?: {
+              cause?: {
+                constraint?: { index?: string };
+                originalMessage?: string;
+              };
+            };
+          }
+        | undefined
+    )?.driverAdapterError?.cause;
+
+    return [
+      fromTarget,
+      cause?.constraint?.index ?? '',
+      cause?.originalMessage ?? '',
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
 
   findById(id: string): Promise<User | null> {
