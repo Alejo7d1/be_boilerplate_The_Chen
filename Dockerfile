@@ -61,6 +61,6 @@ COPY --from=builder /app/src/generated ./src/generated
 # La imagen de Node ya trae el usuario `node` sin privilegios.
 USER node
 
-EXPOSE 3000
+EXPOSE 8000
 
 CMD ["node", "dist/main.js"]

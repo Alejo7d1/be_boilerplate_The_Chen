@@ -82,20 +82,20 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
     }
 
     const databaseName = parsedDatabaseUrl.pathname.replace(/^\/+/, '');
-    if (
-      databaseName.includes('_test') ||
-      databaseName.endsWith('-test') ||
-      parsedDatabaseUrl.port === '5433'
-    ) {
+    // La base de pruebas no sirve como base de desarrollo: los e2e la llenan
+    // y la truncan. Se detecta por nombre y no por puerto, porque el compose
+    // de pruebas publica desarrollo y test en el mismo 5433.
+    if (databaseName.includes('_test') || databaseName.endsWith('-test')) {
       throw new Error(
-        'DATABASE_URL apunta a la base de pruebas (5433). Configurá PostgreSQL de desarrollo en 5432.',
+        `DATABASE_URL apunta a la base de pruebas ("${databaseName}"). ` +
+          'Configurá la base de desarrollo (por ejemplo si_be_boilerplate_dev).',
       );
     }
   }
 
   return {
     NODE_ENV: nodeEnv,
-    PORT: readInt(raw, 'PORT', 3000),
+    PORT: readInt(raw, 'PORT', 8000),
     DATABASE_URL: databaseUrl,
     JWT_SECRET: jwtSecret,
     JWT_EXPIRES_IN: readString(raw, 'JWT_EXPIRES_IN', '15m'),
@@ -108,7 +108,7 @@ export function validateEnv(raw: Record<string, unknown>): EnvConfig {
     NOTIFICATIONS_URL: readString(
       raw,
       'NOTIFICATIONS_URL',
-      'http://localhost:3000/api/notifications/send',
+      'http://localhost:8000/api/notifications/send',
     ),
   };
 }

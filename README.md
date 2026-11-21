@@ -81,7 +81,7 @@ cp .env.example .env
 | Variable | Default | Descripción |
 |---|---|---|
 | `NODE_ENV` | `development` | Entorno de ejecución |
-| `PORT` | `3000` | Puerto HTTP de la API |
+| `PORT` | `8000` | Puerto HTTP de la API (también el de producción) |
 | `POSTGRES_USER` | `postgres` | Usuario que crea el contenedor de Postgres |
 | `POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
 | `POSTGRES_DB` | `si_be_boilerplate` | Base que se crea al inicializar |
@@ -91,7 +91,7 @@ cp .env.example .env
 | `JWT_EXPIRES_IN` | `15m` | Vigencia del access token |
 | `REFRESH_TOKEN_EXPIRES_IN_DAYS` | `7` | Vigencia del refresh token |
 | `BCRYPT_SALT_ROUNDS` | `12` | Cost factor de bcrypt |
-| `NOTIFICATIONS_URL` | `http://localhost:3000/api/notifications/send` | Servicio de Notificaciones que recibe la cancelación de clases (H6) |
+| `NOTIFICATIONS_URL` | `http://localhost:8000/api/notifications/send` | Servicio de Notificaciones que recibe la cancelación de clases (H6) |
 | `TEST_POSTGRES_USER` | `postgres` | Usuario del Postgres local de [docker-compose.test.yml](docker-compose.test.yml) |
 | `TEST_POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
 | `TEST_POSTGRES_DB` | `si_be_boilerplate_test` | Base que crea ese contenedor al inicializarse |
@@ -120,7 +120,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Listo: la API queda en `http://localhost:3000/api` y la documentación en `http://localhost:3000/api/docs`.
+Listo: la API queda en `http://localhost:8000/api` y la documentación en `http://localhost:8000/api/docs`.
 
 Para cargar el usuario de prueba:
 
@@ -165,7 +165,7 @@ npm run start:dev
 Verificá que responde:
 
 ```bash
-curl http://localhost:3000/api
+curl http://localhost:8000/api
 # Hello World!
 ```
 
@@ -353,7 +353,7 @@ El seed también crea bloques de disponibilidad para `entrenador1` y `entrenador
 
 Esquema **access token + refresh token**, solo con email y contraseña.
 
-- **Access token** — JWT firmado con HS256, vida corta (15 min). Viaja en `Authorization: Bearer <token>`. Es stateless: no se consulta la base para validar la firma.
+- **Access token** — JWT firmado con HS256, vida corta (15 min). Viaja en `Authorization: Bearer <token>`. Es stateless: no se consulta la base para validar la firma. Su payload trae `sub` (id), `email` y `role`, así que el frontend puede leer el rol decodificando el token sin pedir `GET /auth/me`.
 - **Refresh token** — string opaco de 32 bytes aleatorios, con vida larga (7 días). Sirve únicamente para pedir un access token nuevo.
 
 ### Decisiones de seguridad
@@ -370,7 +370,7 @@ Esquema **access token + refresh token**, solo con email y contraseña.
 
 **Todo cerrado por defecto.** `JwtAuthGuard` está registrado como guard global; las rutas públicas se abren explícitamente con `@Public()`. Olvidarse del decorador deja el endpoint protegido, que es el error seguro.
 
-**Autorización por rol.** `RolesGuard` corre después del guard de JWT y solo restringe las rutas decoradas con `@Roles(...)`. Los roles del sistema son `MIEMBRO`, `ENTRENADOR` y `RECEPCION_ADMIN`; las rutas sin `@Roles` quedan disponibles para cualquier usuario autenticado.
+**Autorización por rol.** `RolesGuard` corre después del guard de JWT y solo restringe las rutas decoradas con `@Roles(...)`. Los roles del sistema son `MIEMBRO`, `ENTRENADOR` y `RECEPCION_ADMIN`; las rutas sin `@Roles` quedan disponibles para cualquier usuario autenticado. El `role` del token es informativo para el cliente: la autorización se resuelve contra el rol de la fila recargada, no contra el claim, para que un cambio de rol aplique al instante.
 
 **El usuario se relee en cada request**, así una cuenta desactivada o borrada deja de funcionar al instante, sin esperar a que expire el token.
 
@@ -386,7 +386,7 @@ Esquema **access token + refresh token**, solo con email y contraseña.
 
 ## Endpoints
 
-Base: `http://localhost:3000/api` · Documentación interactiva: `http://localhost:3000/api/docs`
+Base: `http://localhost:8000/api` · Documentación interactiva: `http://localhost:8000/api/docs`
 
 ### Documentación Swagger
 
@@ -394,9 +394,9 @@ La documentación OpenAPI se genera automáticamente desde los controladores y D
 
 | Recurso | URL |
 |---|---|
-| Swagger UI | `http://localhost:3000/api/docs` |
-| OpenAPI JSON | `http://localhost:3000/api/docs-json` |
-| OpenAPI YAML | `http://localhost:3000/api/docs-yaml` |
+| Swagger UI | `http://localhost:8000/api/docs` |
+| OpenAPI JSON | `http://localhost:8000/api/docs-json` |
+| OpenAPI YAML | `http://localhost:8000/api/docs-yaml` |
 
 La configuración central (título, descripción, tags, servidor `/api`, esquema `bearer` y opciones de UI) vive en [swagger.config.ts](src/config/swagger.config.ts). Para probar endpoints protegidos:
 
@@ -434,11 +434,15 @@ Los errores `400/401/403/404/409` se documentan con el esquema `ErrorResponseDto
 | `GET` | `/trainers/:id/availability` | `MIEMBRO`, `ENTRENADOR`, `RECEPCION_ADMIN` | `200` | Consulta bloques y `isBooked` (H7/H8) |
 | `DELETE` | `/trainer-availability/:id` | `ENTRENADOR` | `204` | Elimina un bloque propio no reservado (H7) |
 | `POST` | `/personal-sessions` | `MIEMBRO` | `201` | Agenda una sesión personal sobre un bloque libre (H8) |
+| `GET` | `/notifications/me?page=` | Autenticado | `200` | Bandeja propia paginada (10 por página) con `unreadCount` (H19) |
+| `PATCH` | `/notifications/:id/read` | Autenticado | `200` | Marca como leída una notificación propia; ajena o inexistente → `404` (H19) |
+| `GET` | `/equipment?status=` | Autenticado | `200` | Inventario ordenado por nombre, filtrable por estado (H15) |
+| `PATCH` | `/equipment/:id/status` | `RECEPCION_ADMIN` | `200` | Cambia el estado con motivo obligatorio y registra la bitácora (H14) |
 
 ### Ejemplos
 
 ```bash
-BASE=http://localhost:3000/api
+BASE=http://localhost:8000/api
 ```
 
 **Registro**
@@ -504,6 +508,15 @@ curl -X POST $BASE/auth/logout \
 ```
 
 Responde `204 No Content`. Es idempotente: repetirlo con un token ya revocado también devuelve `204`, para no convertirse en un oráculo que revele qué tokens existen.
+
+### Contrato que consume el frontend
+
+Los adaptadores de `lib/api/` del frontend no rellenan valores: si un campo obligatorio falta, la pantalla falla. Estos son los detalles que fija el backend para que no ocurra:
+
+- **`GET /plans`** — `durationDays` siempre es numérico. Los planes sin duración propia (paquetes de clases sueltas) informan **30 días**, la misma vigencia que aplica `POST /memberships/purchase`. `classCount` sí puede ser `null`.
+- **`GET /class-sessions`** — cada clase trae `trainerId` y `trainerName` resueltos, más el inicio desdoblado en `date` (`YYYY-MM-DD`) y `startTime` (`HH:mm`) en hora local, `durationMinutes` y `maxCapacity`. Se mantienen `startsAt`, `durationMin` y `capacity` por compatibilidad.
+- **`GET /notifications/me`** — responde `{ data, unreadCount, page, pageSize, total }`; `data` es la página de 10.
+- **`GET /equipment`** — los estados viajan con las etiquetas del contrato (`Operativa`, `En Mantenimiento`, `Fuera de Servicio`), no con los valores del enum de Prisma.
 
 ---
 
@@ -576,6 +589,7 @@ Definidos en [tsconfig.json](tsconfig.json):
 | `@Prisma`, `@Prisma/*` | `src/prisma/…` |
 | `@Common/*` | `src/common/*/index.ts` |
 | `@Config` | `src/config/index.ts` |
+| `@Equipment`, `@Equipment/*` | `src/equipment/…` |
 | `@PrismaClient` | Cliente generado de Prisma |
 
 ### Dos detalles que hacen que esto funcione
@@ -595,7 +609,7 @@ Con `moduleResolution: nodenext` TypeScript **no** resuelve un directorio a su `
 nest build && tsc-alias -p tsconfig.build.json
 ```
 
-`tsc-alias` reescribe el JS emitido a rutas relativas reales (`./auth/services/index.js`). En watch mode el `start:dev` corre ambos procesos con `concurrently`. Vitest resuelve los alias por su cuenta con `vite-tsconfig-paths`, así que los tests no necesitan el paso extra.
+`tsc-alias` reescribe el JS emitido a rutas relativas reales (`./auth/services/index.js`). En watch mode eso lo hace [`scripts/dev.mjs`](scripts/dev.mjs): espera a que `nest build --watch` termine cada compilación, corre `tsc-alias` **una vez** y recién entonces (re)arranca la app — el orden importa, porque la app no puede cargar `dist/main.js` mientras queden alias sin reescribir. No se usa `tsc-alias -w`: su modo watch se fuga memoria en cada recompilación y termina en `JavaScript heap out of memory`. Vitest resuelve los alias por su cuenta con `vite-tsconfig-paths`, así que los tests no necesitan el paso extra.
 
 > Si agregás un módulo nuevo, sumá su par de entradas al `paths` del tsconfig. Si agregás una carpeta dentro de un módulo existente, con crear su `index.ts` alcanza: el comodín ya la cubre.
 
@@ -611,7 +625,9 @@ nest build && tsc-alias -p tsconfig.build.json
 ├── Dockerfile                    # Imagen multi-stage de la API
 ├── prisma.config.ts              # Configuración del CLI de Prisma
 ├── scripts/
-│   └── create-database.ts        # Crea la base de DATABASE_URL si no existe
+│   ├── check-node-version.mjs    # Valida la versión de Node antes de compilar
+│   ├── create-database.ts        # Crea la base de DATABASE_URL si no existe
+│   └── dev.mjs                   # Watch: build → reescritura de alias → app
 ├── prisma/
 │   ├── schema.prisma             # Modelos de Prisma
 │   ├── migrations/               # Migraciones versionadas
@@ -666,7 +682,7 @@ Cada carpeta de capa incluye un `index.ts` que reexporta sus elementos, de modo 
 | Script | Descripción |
 |---|---|
 | `start` | Compila y arranca la API |
-| `start:dev` | Arranca en modo watch (compilador + reescritura de alias) |
+| `start:dev` | Arranca en modo watch (compilador → reescritura de alias → app) |
 | `start:prod` | Arranca desde `dist/` ya compilado |
 | `build` | Compila a `dist/` y reescribe los path aliases |
 | `lint` | Corre oxlint con chequeos type-aware |
