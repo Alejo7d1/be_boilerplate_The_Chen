@@ -42,22 +42,37 @@ model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
   name         String   @default("")
-  surname      String?  // H1: apellido opcional; `name` sigue siendo el nombre completo que usa la API
+  surname      String? // H1: apellido opcional; `name` sigue siendo el nombre completo que usa la API
   role         UserRole @default(MIEMBRO)
-  cardNumber   String?  @unique @map("card_number")
+  cardNumber   String?  @unique @map("card_number") // H9: búsqueda exacta por carné (unique ya crea el índice)
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  refreshTokens RefreshToken[]
-
+  refreshTokens    RefreshToken[]
   reservations     Reservation[]
   trainedSessions  ClassSession[]    @relation("ClassTrainer")
   memberships      Membership[]
   trainerSlots     TrainerSlot[]
   personalSessions PersonalSession[]
   charges          Charge[]
+
+  // H9
+  accessLogs           AccessLog[]        @relation("AccessMember")
+  registeredAccess     AccessLog[]        @relation("AccessRegisteredBy")
+  // H12
+  routine              Routine?           @relation("RoutineMember")
+  assignedRoutines     Routine[]          @relation("RoutineTrainer")
+  // H13
+  progressRecords      ProgressRecord[]
+  // H14
+  machineStatusChanges MachineStatusLog[]
+  // H16 / H17
+  reviews              Review[]           @relation("ReviewAuthor")
+  receivedReviews      Review[]           @relation("ReviewTrainer")
+  // H18 / H19
+  notifications        Notification[]
 
   @@index([role])
   @@map("users")
@@ -84,7 +99,6 @@ model RefreshToken {
 // ---------------------------------------------------------------
 // H4 — Reserva de cupo en una clase (DB-4.1)
 // ---------------------------------------------------------------
-
 enum ReservationStatus {
   Activa
   Cancelada
@@ -99,9 +113,15 @@ model Reservation {
   status      ReservationStatus @default(Activa)
   createdAt   DateTime          @default(now()) @map("created_at")
   cancelledAt DateTime?         @map("cancelled_at")
+
   // H5: motivo y trazabilidad de la cancelación
-  cancellationReason String?        @map("cancellation_reason") @db.VarChar(255)
-  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at")
+  cancellationReason String? @map("cancellation_reason") @db.VarChar(255)
+
+  // H16: registro de asistencia. La reserva por sí sola no prueba asistencia;
+  // un miembro solo puede calificar una clase si `attendedAt` no es null.
+  attendedAt DateTime? @map("attended_at")
+
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   member  User         @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -129,16 +149,19 @@ model ClassSession {
   durationMin Int                @map("duration_min")
   capacity    Int
   status      ClassSessionStatus @default(Programada)
+
   // H6: motivo de cancelación y baja lógica
-  cancellationReason String?     @map("cancellation_reason") @db.VarChar(255)
-  isActive    Boolean            @default(true) @map("is_active")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
+  cancellationReason String? @map("cancellation_reason") @db.VarChar(255)
+  isActive           Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   trainer      User          @relation("ClassTrainer", fields: [trainerId], references: [id])
   reservations Reservation[]
 
   @@index([startsAt])
+  @@index([status, startsAt]) // H20/H21: reportes de ocupación por rango de fechas
   @@map("class_sessions")
 }
 
@@ -151,39 +174,48 @@ enum PlanType {
 }
 
 model Plan {
-  id           String       @id @default(uuid()) @db.Uuid
-  name         String       @unique
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique
   type         PlanType
-  price        Decimal      @db.Decimal(6, 2)
-  durationDays Int?         @map("duration_days")
-  classCount   Int?         @map("class_count")
+  price        Decimal  @db.Decimal(6, 2)
+  durationDays Int?     @map("duration_days")
+  classCount   Int?     @map("class_count")
   benefits     String?
-  isActive     Boolean      @default(true) @map("is_active")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at")
-  memberships  Membership[]
-  charges      Charge[]
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  memberships Membership[]
+  charges     Charge[]
 
   @@map("plans")
 }
 
 model Membership {
-  id               String    @id @default(uuid()) @db.Uuid
-  userId           String    @map("user_id") @db.Uuid
-  planId           String    @map("plan_id") @db.Uuid
-  startDate        DateTime  @map("start_date")
-  endDate          DateTime? @map("end_date")
-  remainingClasses Int?      @map("remaining_classes")
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  planId           String           @map("plan_id") @db.Uuid
+  startDate        DateTime         @map("start_date")
+  endDate          DateTime?        @map("end_date")
+  remainingClasses Int?             @map("remaining_classes")
   status           MembershipStatus @default(VIGENTE)
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  user    User     @relation(fields: [userId], references: [id])
-  plan    Plan     @relation(fields: [planId], references: [id])
-  charges Charge[]
+  // H21: trazabilidad de renovaciones. Apunta a la membresía que se renueva;
+  // @unique evita renovar dos veces la misma membresía.
+  renewedFromId String? @unique @map("renewed_from_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user        User        @relation(fields: [userId], references: [id])
+  plan        Plan        @relation(fields: [planId], references: [id])
+  renewedFrom Membership? @relation("MembershipRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewal     Membership? @relation("MembershipRenewal")
+  charges     Charge[]
 
   @@index([userId, createdAt])
   @@index([userId, status])
+  @@index([endDate]) // H21: membresías vencidas dentro de un período
   @@map("memberships")
 }
 
@@ -205,7 +237,6 @@ enum SessionStatus {
 // ---------------------------------------------------------------
 // H7 — Bloques de disponibilidad del entrenador (DB-7.1)
 // ---------------------------------------------------------------
-
 model TrainerSlot {
   id        String   @id @default(uuid()) @db.Uuid
   trainerId String   @map("trainer_id") @db.Uuid
@@ -227,7 +258,6 @@ model TrainerSlot {
 // ---------------------------------------------------------------
 // H8 — Sesión personal agendada sobre un bloque (DB-8.1)
 // ---------------------------------------------------------------
-
 model PersonalSession {
   id        String        @id @default(uuid()) @db.Uuid
   slotId    String        @unique @map("slot_id") @db.Uuid
@@ -237,6 +267,7 @@ model PersonalSession {
 
   slot   TrainerSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
   member User        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
   charge Charge?
 
   @@index([memberId])
@@ -253,29 +284,266 @@ enum ChargeStatus {
 
 /// Cobro generado por una compra/renovación de membresía o por una sesión personal.
 model Charge {
-  id                String       @id @default(uuid()) @db.Uuid
-  // H2: comprador y plan cobrado. Opcionales porque los cobros de sesiones
-  // personales (H8) no tienen plan.
-  userId            String?      @map("user_id") @db.Uuid
-  planId            String?      @map("plan_id") @db.Uuid
-  membershipId      String?      @map("membership_id") @db.Uuid
-  personalSessionId String?      @unique @map("personal_session_id") @db.Uuid
-  amount            Decimal      @db.Decimal(10, 2)
-  status            ChargeStatus @default(Pendiente)
-  receiptNumber     String?      @unique @map("receipt_number") @db.VarChar(30)
-  concept           String?      @db.VarChar(150)
-  last4             String?      @db.VarChar(4)
-  paidAt            DateTime?    @map("paid_at")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @default(now()) @updatedAt @map("updated_at")
+  id String @id @default(uuid()) @db.Uuid
+
+  // H2: comprador y plan cobrado. `userId` se llena siempre (también en sesiones
+  // personales) para que H10/H11 puedan filtrar por miembro; `planId` es null
+  // en los cobros de sesiones personales (H8).
+  userId            String? @map("user_id") @db.Uuid
+  planId            String? @map("plan_id") @db.Uuid
+  membershipId      String? @map("membership_id") @db.Uuid
+  personalSessionId String? @unique @map("personal_session_id") @db.Uuid
+
+  amount        Decimal      @db.Decimal(10, 2)
+  status        ChargeStatus @default(Pendiente)
+  receiptNumber String?      @unique @map("receipt_number") @db.VarChar(30)
+  concept       String?      @db.VarChar(150)
+  last4         String?      @db.VarChar(4)
+  paidAt        DateTime?    @map("paid_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
 
   user            User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   plan            Plan?            @relation(fields: [planId], references: [id], onDelete: SetNull)
   membership      Membership?      @relation(fields: [membershipId], references: [id], onDelete: Cascade)
   personalSession PersonalSession? @relation(fields: [personalSessionId], references: [id], onDelete: Cascade)
+  payment         Payment?
 
   @@index([membershipId])
   @@index([userId, status])
   @@index([createdAt])
+  @@index([status, createdAt(sort: Desc)]) // H11: pendientes por fecha de emisión desc + paginación
+  @@index([status, paidAt]) // H20/H21: ingresos Pagados por rango de fechas
   @@map("charges")
+}
+
+// ---------------------------------------------------------------
+// H4 → H21 — Nuevos modelos
+// ---------------------------------------------------------------
+
+// ---------------------------------------------------------------
+// H9 — Registro de accesos (DB-9.1)
+// ---------------------------------------------------------------
+enum AccessResult {
+  Permitido
+  Excepcion
+  Denegado
+
+  @@map("access_result")
+}
+
+model AccessLog {
+  id        String       @id @default(uuid()) @db.Uuid
+  memberId  String       @map("member_id") @db.Uuid
+  result    AccessResult
+  timestamp DateTime     @default(now())
+
+  // Quién de recepción registró el ingreso (auditoría de excepciones).
+  registeredById String? @map("registered_by_id") @db.Uuid
+
+  member       User  @relation("AccessMember", fields: [memberId], references: [id], onDelete: Cascade)
+  registeredBy User? @relation("AccessRegisteredBy", fields: [registeredById], references: [id], onDelete: SetNull)
+
+  // Último acceso del miembro (validación de los 5 minutos)
+  @@index([memberId, timestamp])
+  @@map("access_logs")
+}
+
+// ---------------------------------------------------------------
+// H10 — Pago de un cobro con comprobante (DB-10.1)
+// Nunca se guarda el número completo de tarjeta ni el CVV.
+// ---------------------------------------------------------------
+model Payment {
+  id       String @id @default(uuid()) @db.Uuid
+  chargeId String @unique @map("charge_id") @db.Uuid // 1:1 → un cobro solo se paga una vez
+
+  // Correlativo incremental generado por la base (secuencia). `receiptNumber`
+  // es su representación `REC-00001`.
+  receiptSeq    Int    @unique @default(autoincrement()) @map("receipt_seq")
+  receiptNumber String @unique @map("receipt_number") @db.VarChar(12)
+
+  amount    Decimal  @db.Decimal(10, 2)
+  last4     String   @db.VarChar(4)
+  expMonth  Int      @map("exp_month")
+  expYear   Int      @map("exp_year")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------
+// H12 — Rutinas de ejercicios (DB-12.1)
+// ---------------------------------------------------------------
+model Routine {
+  id        String   @id @default(uuid()) @db.Uuid
+  memberId  String   @unique @map("member_id") @db.Uuid // una sola rutina activa por miembro
+  trainerId String   @map("trainer_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  member    User       @relation("RoutineMember", fields: [memberId], references: [id], onDelete: Cascade)
+  trainer   User       @relation("RoutineTrainer", fields: [trainerId], references: [id])
+  exercises Exercise[]
+
+  @@index([trainerId])
+  @@map("routines")
+}
+
+model Exercise {
+  id        String @id @default(uuid()) @db.Uuid
+  routineId String @map("routine_id") @db.Uuid
+  name      String @db.VarChar(50)
+  series    Int
+  reps      Int
+  position  Int    @default(0)
+
+  routine Routine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
+  @@map("exercises")
+}
+
+// ---------------------------------------------------------------
+// H13 — Progreso físico y marcas de fuerza (DB-13.1)
+// ---------------------------------------------------------------
+model ProgressRecord {
+  id        String   @id @default(uuid()) @db.Uuid
+  memberId  String   @map("member_id") @db.Uuid
+  date      DateTime @db.Date
+  weight    Decimal  @db.Decimal(4, 1) // kg
+  waist     Decimal  @db.Decimal(4, 1) // cm
+  chest     Decimal  @db.Decimal(4, 1) // cm
+  createdAt DateTime @default(now()) @map("created_at")
+
+  member        User           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  strengthMarks StrengthMark[]
+
+  @@index([memberId, date])
+  @@map("progress_records")
+}
+
+model StrengthMark {
+  id               String  @id @default(uuid()) @db.Uuid
+  progressRecordId String  @map("progress_record_id") @db.Uuid
+  exerciseName     String  @map("exercise_name") @db.VarChar(50)
+  weightLifted     Decimal @map("weight_lifted") @db.Decimal(4, 1) // kg
+  repetitions      Int
+
+  progressRecord ProgressRecord @relation(fields: [progressRecordId], references: [id], onDelete: Cascade)
+
+  @@index([progressRecordId])
+  @@map("strength_marks")
+}
+
+// ---------------------------------------------------------------
+// H14 / H15 — Máquinas y bitácora de estados (DB-14.1, DB-15.1)
+// ---------------------------------------------------------------
+enum MachineStatus {
+  OPERATIVA
+  EN_MANTENIMIENTO
+  FUERA_DE_SERVICIO
+
+  @@map("machine_status")
+}
+
+model Machine {
+  id       String        @id @default(uuid()) @db.Uuid
+  name     String        @unique
+  category String?       @db.VarChar(50) // H15: "Fuerza", "Cardio"…
+  status   MachineStatus @default(OPERATIVA)
+
+  // Motivo vigente: solo tiene sentido cuando status != OPERATIVA
+  // (obligatorio por CHECK, ver SQL de migración).
+  reason    String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  statusLogs MachineStatusLog[]
+
+  @@index([status, name]) // H15: filtro por estado manteniendo orden alfabético
+  @@map("machines")
+}
+
+/// Historial inmutable: solo se insertan filas (ver trigger en el SQL de migración).
+model MachineStatusLog {
+  id             String         @id @default(uuid()) @db.Uuid
+  machineId      String         @map("machine_id") @db.Uuid
+  previousStatus MachineStatus? @map("previous_status")
+  newStatus      MachineStatus  @map("new_status")
+  reason         String?        @db.VarChar(255)
+  changedById    String         @map("changed_by_id") @db.Uuid
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  machine   Machine @relation(fields: [machineId], references: [id], onDelete: Restrict)
+  changedBy User    @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([machineId, createdAt])
+  @@map("machine_status_logs")
+}
+
+// ---------------------------------------------------------------
+// H16 / H17 — Reseñas de clases y sesiones personales (DB-16.1, DB-17.1)
+// ---------------------------------------------------------------
+enum ReviewTargetType {
+  CLASE
+  SESION_PERSONAL
+
+  @@map("review_target_type")
+}
+
+model Review {
+  id         String           @id @default(uuid()) @db.Uuid
+  // UUID de una ClassSession o de una PersonalSession (según targetType).
+  // Es polimórfico: no tiene FK; el backend valida que exista y que cumpla
+  // la regla de asistencia.
+  sessionId  String           @map("session_id") @db.Uuid
+  targetType ReviewTargetType @map("target_type")
+  memberId   String           @map("member_id") @db.Uuid
+  // Entrenador que impartió la actividad (desnormalizado para H17).
+  trainerId  String           @map("trainer_id") @db.Uuid
+  rating     Int // CHECK 1..5 en el SQL de migración
+  comment    String?          @db.VarChar(300)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  member  User @relation("ReviewAuthor", fields: [memberId], references: [id], onDelete: Cascade)
+  trainer User @relation("ReviewTrainer", fields: [trainerId], references: [id])
+
+  @@unique([memberId, sessionId]) // una reseña por miembro y sesión
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([sessionId, createdAt])
+  @@index([trainerId, createdAt])
+  @@map("reviews")
+}
+
+// ---------------------------------------------------------------
+// H18 / H19 — Notificaciones (DB-18.1, DB-19.1)
+// ---------------------------------------------------------------
+enum NotificationSource {
+  MEMBRESIA
+  CLASES
+  PAGOS
+  EQUIPAMIENTO
+
+  @@map("notification_source")
+}
+
+model Notification {
+  id           String             @id @default(uuid()) @db.Uuid
+  recipientId  String             @map("recipient_id") @db.Uuid
+  title        String             @db.VarChar(100)
+  message      String             @db.VarChar(500)
+  sourceModule NotificationSource @map("source_module")
+  referenceId  String?            @map("reference_id")
+  isRead       Boolean            @default(false) @map("is_read")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, createdAt(sort: Desc)]) // bandeja paginada
+  @@index([recipientId, isRead]) // conteo de no leídas
+  @@map("notifications")
 }
