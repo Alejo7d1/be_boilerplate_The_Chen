@@ -1,6 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { Plan } from '@PrismaClient';
 
+/**
+ * Vigencia que se informa para los planes sin `durationDays` (paquetes de
+ * clases sueltas). Es la misma que aplica la compra de membresía, así que el
+ * cliente ve la fecha de vencimiento real del plan.
+ */
+const DEFAULT_DURATION_DAYS = 30;
+
 export class PlanResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -14,8 +21,12 @@ export class PlanResponseDto {
   @ApiProperty({ example: 35 })
   price!: number;
 
-  @ApiProperty({ example: 30, nullable: true, type: Number })
-  durationDays!: number | null;
+  @ApiProperty({
+    description:
+      'Vigencia en días. Nunca es null: los planes sin duración propia informan la vigencia por defecto de 30 días.',
+    example: 30,
+  })
+  durationDays!: number;
 
   @ApiProperty({ example: 12, nullable: true, type: Number })
   classCount!: number | null;
@@ -36,7 +47,7 @@ export class PlanResponseDto {
       name: plan.name,
       type: plan.type,
       price: Number(plan.price),
-      durationDays: plan.durationDays,
+      durationDays: plan.durationDays ?? DEFAULT_DURATION_DAYS,
       classCount: plan.classCount,
       benefits: plan.benefits,
       active: plan.isActive,

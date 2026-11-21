@@ -90,16 +90,18 @@ export class UserRepository {
     return `${prefix}-${year}-${suffix}`;
   }
 
+  /**
+   * ¿El P2002 vino de la restricción única del carné y no de la del email?
+   *
+   * Desde Prisma 7 el `meta` de un P2002 ya no trae `target` con los campos:
+   * el error real del driver llega en `meta.driverAdapterError`, con el nombre
+   * de la restricción (`users_card_number_key`). Se serializa el meta completo
+   * para no depender de la forma exacta, que ya cambió una vez.
+   */
   private isCardNumberConflict(
     error: Prisma.PrismaClientKnownRequestError,
   ): boolean {
-    const target = error.meta?.target;
-    const fields = Array.isArray(target)
-      ? target.join(',')
-      : typeof target === 'string'
-        ? target
-        : JSON.stringify(target ?? '');
-    return fields.includes('card_number');
+    return JSON.stringify(error.meta ?? {}).includes('card_number');
   }
 
   findById(id: string): Promise<User | null> {
