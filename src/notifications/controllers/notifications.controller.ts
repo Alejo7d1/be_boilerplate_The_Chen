@@ -1,13 +1,18 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -16,11 +21,13 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ErrorResponseDto } from '@Common/dto';
-import { CurrentUser } from '@Auth/decorators';
+import { CurrentUser, Roles } from '@Auth/decorators';
 import {
   ListNotificationsQueryDto,
   NotificationListResponseDto,
   NotificationResponseDto,
+  SendNotificationDto,
+  SendNotificationResponseDto,
 } from '../dto/index.js';
 import { UserNotificationsService } from '../services/index.js';
 import type { User } from '@PrismaClient';
@@ -71,5 +78,36 @@ export class NotificationsController {
     @CurrentUser() user: User,
   ): Promise<NotificationResponseDto> {
     return this.service.markAsRead(id, user.id);
+  }
+
+  @Post('send')
+  @Roles('RECEPCION_ADMIN', 'ENTRENADOR')
+  @ApiOperation({
+    summary: 'Envía una notificación a uno o varios usuarios (Módulo 9)',
+    description:
+      'Crea una fila por destinatario, así cada uno la ve en su propia bandeja con su estado de lectura independiente. Recepción puede notificar a cualquier usuario activo; un `ENTRENADOR` solo a los miembros con los que tiene vínculo (clase, sesión personal o rutina asignada).',
+  })
+  @ApiCreatedResponse({ type: SendNotificationResponseDto })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description: 'Destinatarios vacíos, más de 50, texto fuera de rango o módulo inválido',
+  })
+  @ApiForbiddenResponse({
+    type: ErrorResponseDto,
+    description: 'El entrenador intentó notificar a un miembro fuera de su alcance',
+  })
+  @ApiNotFoundResponse({
+    type: ErrorResponseDto,
+    description: 'Algún destinatario no existe o está inactivo',
+  })
+  @ApiUnauthorizedResponse({
+    type: ErrorResponseDto,
+    description: 'Token ausente o inválido',
+  })
+  send(
+    @Body() dto: SendNotificationDto,
+    @CurrentUser() user: User,
+  ): Promise<SendNotificationResponseDto> {
+    return this.service.send(dto, user);
   }
 }

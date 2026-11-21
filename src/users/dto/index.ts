@@ -1,4 +1,5 @@
 export * from './create-user.dto.js';
 export * from './list-users-query.dto.js';
+export * from './member-option-response.dto.js';
 export * from './user-list-response.dto.js';
 export * from './user-response.dto.js';
