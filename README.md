@@ -81,7 +81,7 @@ cp .env.example .env
 | Variable | Default | Descripción |
 |---|---|---|
 | `NODE_ENV` | `development` | Entorno de ejecución |
-| `PORT` | `7758` | Puerto HTTP de la API (también el de producción) |
+| `PORT` | `8000` | Puerto HTTP de la API (también el de producción) |
 | `POSTGRES_USER` | `postgres` | Usuario que crea el contenedor de Postgres |
 | `POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
 | `POSTGRES_DB` | `si_be_boilerplate` | Base que se crea al inicializar |
@@ -91,7 +91,7 @@ cp .env.example .env
 | `JWT_EXPIRES_IN` | `15m` | Vigencia del access token |
 | `REFRESH_TOKEN_EXPIRES_IN_DAYS` | `7` | Vigencia del refresh token |
 | `BCRYPT_SALT_ROUNDS` | `12` | Cost factor de bcrypt |
-| `NOTIFICATIONS_URL` | `http://localhost:7758/api/notifications/send` | Servicio de Notificaciones que recibe la cancelación de clases (H6) |
+| `NOTIFICATIONS_URL` | `http://localhost:8000/api/notifications/send` | Servicio de Notificaciones que recibe la cancelación de clases (H6) |
 | `TEST_POSTGRES_USER` | `postgres` | Usuario del Postgres local de [docker-compose.test.yml](docker-compose.test.yml) |
 | `TEST_POSTGRES_PASSWORD` | `postgres` | Contraseña de ese usuario |
 | `TEST_POSTGRES_DB` | `si_be_boilerplate_test` | Base que crea ese contenedor al inicializarse |
@@ -120,7 +120,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Listo: la API queda en `http://localhost:7758/api` y la documentación en `http://localhost:7758/api/docs`.
+Listo: la API queda en `http://localhost:8000/api` y la documentación en `http://localhost:8000/api/docs`.
 
 Para cargar el usuario de prueba:
 
@@ -165,7 +165,7 @@ npm run start:dev
 Verificá que responde:
 
 ```bash
-curl http://localhost:7758/api
+curl http://localhost:8000/api
 # Hello World!
 ```
 
@@ -386,7 +386,7 @@ Esquema **access token + refresh token**, solo con email y contraseña.
 
 ## Endpoints
 
-Base: `http://localhost:7758/api` · Documentación interactiva: `http://localhost:7758/api/docs`
+Base: `http://localhost:8000/api` · Documentación interactiva: `http://localhost:8000/api/docs`
 
 ### Documentación Swagger
 
@@ -394,9 +394,9 @@ La documentación OpenAPI se genera automáticamente desde los controladores y D
 
 | Recurso | URL |
 |---|---|
-| Swagger UI | `http://localhost:7758/api/docs` |
-| OpenAPI JSON | `http://localhost:7758/api/docs-json` |
-| OpenAPI YAML | `http://localhost:7758/api/docs-yaml` |
+| Swagger UI | `http://localhost:8000/api/docs` |
+| OpenAPI JSON | `http://localhost:8000/api/docs-json` |
+| OpenAPI YAML | `http://localhost:8000/api/docs-yaml` |
 
 La configuración central (título, descripción, tags, servidor `/api`, esquema `bearer` y opciones de UI) vive en [swagger.config.ts](src/config/swagger.config.ts). Para probar endpoints protegidos:
 
@@ -442,7 +442,7 @@ Los errores `400/401/403/404/409` se documentan con el esquema `ErrorResponseDto
 ### Ejemplos
 
 ```bash
-BASE=http://localhost:7758/api
+BASE=http://localhost:8000/api
 ```
 
 **Registro**
