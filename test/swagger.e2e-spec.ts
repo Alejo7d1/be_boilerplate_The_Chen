@@ -50,7 +50,9 @@ describe('Documentación Swagger', () => {
       res.body.paths as Record<string, Record<string, unknown>>,
     ).flatMap((path) => Object.values(path));
 
-    expect(operations).toHaveLength(25);
+    // 25 operaciones previas + /notifications/me, /notifications/{id}/read,
+    // /equipment y /equipment/{id}/status.
+    expect(operations).toHaveLength(29);
     for (const operation of operations as Array<{
       description?: string;
       tags?: string[];
@@ -73,6 +75,9 @@ describe('Documentación Swagger', () => {
         '/classes',
         '/trainer-availability',
         '/personal-sessions',
+        '/notifications/me',
+        '/equipment',
+        '/equipment/{id}/status',
       ]),
     );
   });
